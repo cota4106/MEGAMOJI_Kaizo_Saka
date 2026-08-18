@@ -4,10 +4,11 @@ import shaderWave from "../shaders/wave.glsl";
 
 const shader = webglEffectShader(shaderWave.sourceCode);
 
-const webglWave: WebGLEffect = (keyframe) => {
+const webglWave: WebGLEffect = (keyframe, width, height, params = {}) => {
+  const { frequency = 2.0, amplitude = 0.02 } = params;
   const program = webglLoadEffectShader(shader);
-  webglSetFloat(program, "frequency", 2.0);
-  webglSetFloat(program, "amplitude", 0.02);
+  webglSetFloat(program, "frequency", frequency);
+  webglSetFloat(program, "amplitude", amplitude);
   webglSetFloat(program, "keyframe", keyframe);
   return program;
 };

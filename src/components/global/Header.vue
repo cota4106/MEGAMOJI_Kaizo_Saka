@@ -1,7 +1,8 @@
 <template>
   <header class="header">
     <h1 class="title">
-      MEGAMOJI
+      サカバンペプシ製MEGAMOJI
+      <span class="badge">サカバンペプシの改造版</span>
     </h1>
     <p class="description">
       カスタム絵文字をサクッと作れる<span class="nya">🐱</span>
@@ -19,10 +20,23 @@
 }
 
 .title {
+  display: flex;
+  align-items: baseline;
+  gap: var(--spacingSmall);
   margin: 0;
   font-size: var(--fontSizeTitle);
   font-weight: bold;
   line-height: 1;
+}
+
+.badge {
+  padding: 0.2em 0.6em;
+  font-size: 0.32em;
+  font-weight: bold;
+  color: var(--bg);
+  white-space: nowrap;
+  background-color: var(--primary);
+  border-radius: 999px;
 }
 
 .description {

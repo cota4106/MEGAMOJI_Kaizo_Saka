@@ -57,6 +57,15 @@ export default defineComponent({
       },
     };
   },
+  computed: {
+    miniPreviewUrl(): string | null {
+      const firstRow = this.resultImages[0];
+      if (!firstRow || !firstRow[0]) {
+        return null;
+      }
+      return URL.createObjectURL(firstRow[0]);
+    },
+  },
   mounted() {
     Analytics.switchMode("text");
   },
@@ -77,6 +86,23 @@ export default defineComponent({
     onRender(img: HTMLCanvasElement, name: string): void {
       this.baseImage = img;
       this.name = name;
+    },
+    scrollToResult(): void {
+      const el = this.$refs.resultAnchor as HTMLElement | undefined;
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    },
+    getCurrentConfSnapshot(): unknown {
+      const target = this.$refs.targetRef as { snapshotConf?: () => unknown } | undefined;
+      return target?.snapshotConf ? target.snapshotConf() : null;
+    },
+    applyGallerySettings(settings: unknown): void {
+      const target = this.$refs.targetRef as { applyConfSnapshot?: (s: unknown) => void } | undefined;
+      if (target?.applyConfSnapshot) {
+        target.applyConfSnapshot(settings);
+      }
+      this.ui.showTargetPanel = true;
     },
   },
 });
@@ -134,28 +160,85 @@ export default defineComponent({
               :emoji-size="emojiSize"
               @render="onRender" />
           <Target
+              ref="targetRef"
               v-model:emoji-size="emojiSize"
               :show="ui.showTargetPanel"
               :base-image="baseImage"
               @render="onRenderTarget" />
         </GridItem>
         <GridItem>
-          <Tutorial v-if="!baseImage" />
-          <Space v-else vertical large>
-            <BaseImage v-if="isDev" :image="baseImage" />
-            <Result
-                :images="resultImages"
-                :name="name"
-                :show-target="ui.showTargetPanel"
-                @toggle-show-target="onToggleShowTarget" />
-          </Space>
+          <div ref="resultAnchor" class="sticky-preview">
+            <Tutorial v-if="!baseImage" />
+            <Space v-else vertical large>
+              <BaseImage v-if="isDev" :image="baseImage" />
+              <Result
+                  :images="resultImages"
+                  :name="name"
+                  :show-target="ui.showTargetPanel"
+                  :get-settings-snapshot="getCurrentConfSnapshot"
+                  :apply-settings-snapshot="applyGallerySettings"
+                  @toggle-show-target="onToggleShowTarget" />
+            </Space>
+          </div>
         </GridItem>
       </Grid>
+
+      <button
+          v-if="ui.showTargetPanel && miniPreviewUrl"
+          type="button"
+          class="mini-preview"
+          title="プレビューを見る"
+          @click="scrollToResult">
+        <img :src="miniPreviewUrl" alt="現在のプレビュー">
+      </button>
 
       <Footer />
     </Space>
   </div>
 </template>
+
+<style>
+.sticky-preview {
+  position: sticky;
+  top: var(--spacingLarge);
+  /* 縦に長い設定パネルより自分の方が短くても、画面の高さいっぱいまでは追従したいので
+     ビューポート高さから少し余白を引いた分を上限にしておく(はみ出す分は中でスクロール) */
+  max-height: calc(100vh - var(--spacingLarge) * 2);
+  overflow-y: auto;
+}
+
+.mini-preview {
+  position: fixed;
+  right: var(--spacingLarge);
+  bottom: var(--spacingLarge);
+  z-index: 100;
+  display: none;
+  width: 64px;
+  height: 64px;
+  padding: 0;
+  cursor: pointer;
+  background-color: var(--bg);
+  border: 2px solid var(--primary);
+  border-radius: var(--borderRadiusLarge, 12px);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+}
+
+.mini-preview img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: inherit;
+}
+
+/* Result(プレビュー)がすでに横に常時表示されている画面幅(Gridが1列でなくなる境目)
+   では、フローティングプレビューは不要なので隠す。Grid側のブレークポイント(760px)に合わせている */
+@media (max-width: 760px) {
+  .mini-preview {
+    display: block;
+  }
+}
+</style>
 
 <style>
 :root {

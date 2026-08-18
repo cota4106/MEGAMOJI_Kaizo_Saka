@@ -28,6 +28,8 @@ export type Effect = (
   ctx: CanvasRenderingContext2D,
   // size of the image to be rendered
   width: number, height: number,
+  // current values of the effect's adjustable parameters (see EffectParamDef)
+  params?: Record<string, number>,
 ) => void;
 
 // WebGLEffect loads and configures a WebGLProgram, which is then used to effect
@@ -36,7 +38,23 @@ export type WebGLEffect = (
   keyframe: number,
   width: number,
   height: number,
+  // current values of the effect's adjustable parameters (see EffectParamDef)
+  params?: Record<string, number>,
 ) => WebGLProgram;
+
+// EffectParamDef describes a single adjustable numeric parameter of an
+// Effect/WebGLEffect, used to render a slider in the UI.
+export type EffectParamDef = {
+  // key used to look up the current value in the params object passed to
+  // the effect function
+  key: string,
+  // label shown next to the slider
+  label: string,
+  min: number,
+  max: number,
+  step?: number,
+  default: number,
+};
 
 // Gradient is a list of colorstops
 export type ColorStop = { color: string, pos: number };

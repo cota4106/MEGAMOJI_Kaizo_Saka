@@ -256,3 +256,23 @@ woff 化にはこれ https://github.com/zk-phi/woff2sfnt-sfnt2woff を使って�
 
 ライセンス表記時の作者名は、アカウント名などから適当に持ってくるのではなく、
 なるべく正式な表記を探してコピーしてください。
+
+** このフォーク (cota4106/MEGAMOJI_Kaizo) について
+
+[[https://github.com/zk-phi/MEGAMOJI][本家 MEGAMOJI]] のカスタム版です。主な変更点は以下の通りです。
+
+- エフェクトの強さなどをスライダー・数値入力で調整できる機能を追加
+- Web版に加えて、Electron によるデスクトップアプリ (Windows / Mac / Linux) 化に対応
+
+*** デスクトップアプリのビルド
+
+: npm run dist:win     # Windows
+: npm run dist:mac     # macOS (macOS 上でのビルドが必要)
+: npm run dist:linux   # Linux
+
+~release/~ フォルダに出力されます。
+
+*** Web版のデプロイ (GitHub Pages)
+
+~main~ ブランチに push すると、GitHub Actions (~.github/workflows/pages-deploy.yml~)
+が自動でビルド・GitHub Pages への公開まで行います。

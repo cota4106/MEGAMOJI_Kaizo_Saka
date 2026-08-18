@@ -1,4 +1,9 @@
 {
+  "name": "megamoji",
+  "version": "1.0.0",
+  "description": "MEGAMOJI - deko-moji (decorated emoji) generator",
+  "author": "cotataro",
+  "main": "electron/main.js",
   "scripts": {
     "build": "CODE_VERSION=\"$(git rev-parse HEAD)\" webpack --mode production",
     "build-storybook": "build-storybook -o dist/storybook",
@@ -11,7 +16,40 @@
     "fix:js": "eslint --fix '**/*.{js,ts,vue}'",
     "test": "npm run test:e2e",
     "test:e2e": "playwright test",
-    "storybook": "start-storybook -p 6006"
+    "storybook": "start-storybook -p 6006",
+    "electron:dev": "npm run build && electron .",
+    "dist:mac": "npm run build && electron-builder --mac",
+    "dist:win": "npm run build && electron-builder --win",
+    "dist:linux": "npm run build && electron-builder --linux"
+  },
+  "build": {
+    "appId": "net.megumoji.app",
+    "productName": "MEGAMOJI-kaizouban",
+    "files": [
+      "electron/**/*",
+      "dist/**/*",
+      "!dist/storybook/**/*"
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "mac": {
+      "target": [
+        "dir"
+      ],
+      "category": "public.app-category.graphics-design"
+    },
+    "win": {
+      "target": [
+        "portable"
+      ]
+    },
+    "linux": {
+      "target": [
+        "dir"
+      ],
+      "category": "Graphics"
+    }
   },
   "browserslist": [
     ">1% in JP",
@@ -22,6 +60,7 @@
     "file-saver": "^2.0.5",
     "filenamify": "^6.0.0",
     "gifenc": "mattdesl/gifenc#64842fca317b112a8590f8fef2bf3825da8f6fe3",
+    "gifuct-js": "^2.1.2",
     "jszip": "^3.7.1",
     "mitt": "^3.0.1",
     "pica": "^9.0.1",
@@ -48,6 +87,8 @@
     "canvas": "^3.2.3",
     "copy-webpack-plugin": "^9.0.1",
     "css-loader": "^6.2.0",
+    "electron": "^43.3.0",
+    "electron-builder": "^26.15.3",
     "eslint": "^7.31.0",
     "eslint-config-airbnb-base": "^15.0.0",
     "eslint-import-resolver-webpack": "^0.13.1",

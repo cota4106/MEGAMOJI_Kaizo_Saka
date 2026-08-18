@@ -1,11 +1,13 @@
 import { Effect } from "../types";
 
-const effectPoyonJump: Effect = (keyframe, ctx, cellWidth, cellHeight) => {
-  ctx.translate(0, -cellHeight / 6 * Math.sin(Math.PI * keyframe));
+const effectPoyonJump: Effect = (keyframe, ctx, cellWidth, cellHeight, params = {}) => {
+  const { strength = 1 } = params;
+  ctx.translate(0, -cellHeight / 6 * strength * Math.sin(Math.PI * keyframe));
 };
 
-const effectPoyonBounce: Effect = (keyframe, ctx, cellWidth, cellHeight) => {
-  const ratio = Math.sin(Math.PI * keyframe) / 2;
+const effectPoyonBounce: Effect = (keyframe, ctx, cellWidth, cellHeight, params = {}) => {
+  const { strength = 1 } = params;
+  const ratio = Math.sin(Math.PI * keyframe) / 2 * strength;
   ctx.transform(
     1 + ratio,
     0,
@@ -16,11 +18,11 @@ const effectPoyonBounce: Effect = (keyframe, ctx, cellWidth, cellHeight) => {
   );
 };
 
-const effectPoyon: Effect = (keyframe, ctx, cellWidth, cellHeight) => {
+const effectPoyon: Effect = (keyframe, ctx, cellWidth, cellHeight, params = {}) => {
   if (keyframe < 0.4) {
-    effectPoyonBounce(keyframe / 0.4, ctx, cellWidth, cellHeight);
+    effectPoyonBounce(keyframe / 0.4, ctx, cellWidth, cellHeight, params);
   } else {
-    effectPoyonJump((keyframe - 0.4) / 0.6, ctx, cellWidth, cellHeight);
+    effectPoyonJump((keyframe - 0.4) / 0.6, ctx, cellWidth, cellHeight, params);
   }
 };
 

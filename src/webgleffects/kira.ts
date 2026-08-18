@@ -4,10 +4,11 @@ import shaderHueshift from "../shaders/hueshift.glsl";
 
 const shader = webglEffectShader(shaderHueshift.sourceCode);
 
-const webglKira: WebGLEffect = (keyframe) => {
+const webglKira: WebGLEffect = (keyframe, width, height, params = {}) => {
+  const { speed = 2.0 } = params;
   const program = webglLoadEffectShader(shader);
 
-  webglSetFloat(program, "hue", keyframe * 2 * Math.PI);
+  webglSetFloat(program, "hue", keyframe * speed * Math.PI);
 
   return program;
 };

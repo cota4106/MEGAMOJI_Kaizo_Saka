@@ -4,10 +4,10 @@ import shaderMosaic from "../shaders/mosaic.glsl";
 
 const shader = webglEffectShader(shaderMosaic.sourceCode);
 
-const webglMosaic: WebGLEffect = (keyframe) => {
+const webglMosaic: WebGLEffect = (keyframe, width, height, params = {}) => {
+  const { size = 0.075 } = params;
   const program = webglLoadEffectShader(shader);
 
-  const size = 0.075;
   const offset = keyframe * size;
   webglSetFloat(program, "size", size);
   webglSetVec2(program, "offset", [offset, offset]);
