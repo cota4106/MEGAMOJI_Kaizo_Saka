@@ -8,13 +8,13 @@ export default defineComponent({
   },
   methods: {
     backstage() {
-      window.open("https://github.com/cota4106/MEGAMOJI_Kaizo");
+      window.open("https://github.com/cota4106/MEGAMOJI_Kaizo_Saka");
     },
     donation() {
       window.open("https://note.com/zk_phi/n/n3a199c99d6d6");
     },
     share() {
-      window.open("https://twitter.com/share?url=https://cota4106.github.io/MEGAMOJI_Kaizo/&text=カスタム絵文字メーカー%20MEGAMOJI(サカバンペプシ改造版)&hashtags=メガ文字");
+      window.open("https://twitter.com/share?url=https://cota4106.github.io/MEGAMOJI_Kaizo_Saka/&text=カスタム絵文字メーカー%20MEGAMOJI(サカバンペプシ改造版)&hashtags=メガ文字");
     },
   },
 });
@@ -52,7 +52,7 @@ export default defineComponent({
     <p class="p">
       <img
           class="hit-counter"
-          src="https://api.visitorbadge.io/api/visitors?user=cota4106&repo=MEGAMOJI_Kaizo&labelColor=%23555555&countColor=%2379C83D&label=views&style=default"
+          src="https://api.visitorbadge.io/api/visitors?user=cota4106&repo=MEGAMOJI_Kaizo_Saka&labelColor=%23555555&countColor=%2379C83D&label=views&style=default"
           alt="このページの閲覧数">
     </p>
     <p class="p footnote">
