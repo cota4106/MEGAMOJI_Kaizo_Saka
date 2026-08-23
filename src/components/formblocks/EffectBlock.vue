@@ -69,7 +69,7 @@ export default defineComponent({
       <Space vertical full>
         <div v-for="effect in category.effects" :key="effect.label" class="effect-row">
           <Checkbox
-              :name="effects.label"
+              :name="effect.label"
               :value="effect"
               :model-value="modelValue"
               @update:model-value="$emit('update:modelValue', $event)">
