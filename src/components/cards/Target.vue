@@ -768,6 +768,7 @@ export default defineComponent({
           <CellcountBlock
               v-if="showDetails"
               v-model="conf.cells"
+              :aspect="conf.targetAspect"
               @update:model-value="refreshDefaultSettings" />
           <Fieldset v-if="showDetails" label="トリミング (横)">
             <Slider
