@@ -8,6 +8,7 @@ import FileSource from "./cards/FileSource.vue";
 import FukumojiSource from "./cards/FukumojiSource.vue";
 import Target from "./cards/Target.vue";
 import Result from "./cards/Result.vue";
+import Gallery from "./cards/Gallery.vue";
 import BaseImage from "./cards/BaseImage.vue";
 import Tutorial from "./cards/Tutorial.vue";
 import TabButton from "./inputs/TabButton.vue";
@@ -19,6 +20,10 @@ import Image from "./icons/Image.vue";
 import Text from "./icons/Text.vue";
 import Emoji from "./icons/Emoji.vue";
 import { NODE_ENV } from "../utils/env";
+import {
+  GalleryEntry, loadGalleryFromStorage, removeFromGallery, clearGallery,
+  getGalleryLimit, setGalleryLimit,
+} from "../utils/gallery";
 import "../css/destyle.css";
 
 export default defineComponent({
@@ -28,6 +33,7 @@ export default defineComponent({
     FukumojiSource,
     Target,
     Result,
+    Gallery,
     BaseImage,
     Tutorial,
     TabButton,
@@ -55,6 +61,9 @@ export default defineComponent({
         showTargetPanel: false,
         showTargetDetails: false,
       },
+      /* gallery (作った絵文字の履歴。baseImageの有無に関わらず常に表示する) */
+      gallery: [] as GalleryEntry[],
+      galleryLimit: 10,
     };
   },
   computed: {
@@ -68,6 +77,8 @@ export default defineComponent({
   },
   mounted() {
     Analytics.switchMode("text");
+    this.gallery = loadGalleryFromStorage();
+    this.galleryLimit = getGalleryLimit();
   },
   methods: {
     onToggleShowTarget(): void {
@@ -93,16 +104,70 @@ export default defineComponent({
         el.scrollIntoView({ behavior: "smooth", block: "start" });
       }
     },
-    getCurrentConfSnapshot(): unknown {
-      const target = this.$refs.targetRef as { snapshotConf?: () => unknown } | undefined;
-      return target?.snapshotConf ? target.snapshotConf() : null;
-    },
-    applyGallerySettings(settings: unknown): void {
-      const target = this.$refs.targetRef as { applyConfSnapshot?: (s: unknown) => void } | undefined;
-      if (target?.applyConfSnapshot) {
-        target.applyConfSnapshot(settings);
+    getTextSnapshotForPreset(): unknown {
+      if (this.ui.mode !== "text") {
+        return undefined;
       }
-      this.ui.showTargetPanel = true;
+      const textSource = this.$refs.textSourceRef as { getSnapshot?: () => unknown } | undefined;
+      return textSource?.getSnapshot ? textSource.getSnapshot() : undefined;
+    },
+    applyTextSnapshotFromPreset(snapshot: unknown): void {
+      if (this.ui.mode !== "text" || !snapshot) {
+        return;
+      }
+      const textSource = this.$refs.textSourceRef as { applySnapshot?: (s: unknown) => void } | undefined;
+      if (textSource?.applySnapshot) {
+        textSource.applySnapshot(snapshot);
+        // テキストが復元された場合、エフェクトパネルの裏に隠れて見えなくならないよう
+        // テキスト入力側の画面を表示する(ギャラリー読み込み時と同じ対応)
+        this.ui.showTargetPanel = false;
+      }
+    },
+    getFullSnapshot(): { mode: string, target: unknown, text: unknown } {
+      const target = this.$refs.targetRef as { snapshotConf?: () => unknown } | undefined;
+      const textSource = this.$refs.textSourceRef as { getSnapshot?: () => unknown } | undefined;
+      return {
+        mode: this.ui.mode,
+        target: target?.snapshotConf ? target.snapshotConf() : null,
+        text: (this.ui.mode === "text" && textSource?.getSnapshot) ? textSource.getSnapshot() : null,
+      };
+    },
+    applyFullSnapshot(snapshot: { mode?: string, target?: unknown, text?: unknown }): void {
+      if (snapshot.mode) {
+        this.ui.mode = snapshot.mode;
+      }
+      // 復元した元ネタ(テキストなど)がエフェクト設定パネルの裏に隠れて
+      // 見えなくならないよう、まず元ネタ側の画面を表示する
+      // (エフェクトの設定自体は裏側で正しく適用され、プレビューには反映される)
+      this.ui.showTargetPanel = false;
+      // TextSource側はv-ifで表示/非表示されるが、コンポーネント自体は破棄されないため
+      // モード切り替えの反映(DOM更新)を待ってから適用する
+      this.$nextTick(() => {
+        const target = this.$refs.targetRef as { applyConfSnapshot?: (s: unknown) => void } | undefined;
+        if (target?.applyConfSnapshot && snapshot.target) {
+          target.applyConfSnapshot(snapshot.target);
+        }
+        if (snapshot.mode === "text" && snapshot.text) {
+          const textSource = this.$refs.textSourceRef as { applySnapshot?: (s: unknown) => void } | undefined;
+          if (textSource?.applySnapshot) {
+            textSource.applySnapshot(snapshot.text);
+          }
+        }
+      });
+    },
+    refreshGallery(): void {
+      this.gallery = loadGalleryFromStorage();
+    },
+    onRemoveGalleryEntry(id: string): void {
+      this.gallery = removeFromGallery(id);
+    },
+    onClearGallery(): void {
+      clearGallery();
+      this.gallery = [];
+    },
+    onChangeGalleryLimit(value: number): void {
+      this.galleryLimit = value;
+      this.gallery = setGalleryLimit(value);
     },
   },
 });
@@ -149,6 +214,7 @@ export default defineComponent({
       <Grid :columns="[[760, 1], [Infinity, 3]]" spaced>
         <GridItem :span="2">
           <TextSource
+              ref="textSourceRef"
               :show="ui.mode == 'text' && !ui.showTargetPanel"
               :emoji-size="emojiSize"
               @render="onRender" />
@@ -164,6 +230,8 @@ export default defineComponent({
               v-model:emoji-size="emojiSize"
               :show="ui.showTargetPanel"
               :base-image="baseImage"
+              :get-external-snapshot="getTextSnapshotForPreset"
+              :apply-external-snapshot="applyTextSnapshotFromPreset"
               @render="onRenderTarget" />
         </GridItem>
         <GridItem>
@@ -175,10 +243,17 @@ export default defineComponent({
                   :images="resultImages"
                   :name="name"
                   :show-target="ui.showTargetPanel"
-                  :get-settings-snapshot="getCurrentConfSnapshot"
-                  :apply-settings-snapshot="applyGallerySettings"
-                  @toggle-show-target="onToggleShowTarget" />
+                  :get-settings-snapshot="getFullSnapshot"
+                  @toggle-show-target="onToggleShowTarget"
+                  @saved="refreshGallery" />
             </Space>
+            <Gallery
+                :entries="gallery"
+                :limit="galleryLimit"
+                @load="applyFullSnapshot"
+                @remove="onRemoveGalleryEntry"
+                @clear="onClearGallery"
+                @change-limit="onChangeGalleryLimit" />
           </div>
         </GridItem>
       </Grid>
