@@ -101,6 +101,7 @@ type Preset = {
   id: string;
   name: string;
   snapshot: ConfSnapshot;
+  external?: unknown; // 文字入力の内容など、Target.vueの外側の状態(任意)
   savedAt: number;
 };
 
@@ -131,7 +132,11 @@ function savePresetsToStorage(presets: Preset[]): void {
 const PRESET_CODE_PREFIX = "MGMJPRESET1:";
 
 function encodePresetToCode(preset: Preset): string {
-  const payload = JSON.stringify({ name: preset.name, snapshot: preset.snapshot });
+  const payload = JSON.stringify({
+    name: preset.name,
+    snapshot: preset.snapshot,
+    external: preset.external,
+  });
   // 絵文字等のマルチバイト文字を含むためencodeURIComponentを経由してbase64化する
   const base64 = window.btoa(encodeURIComponent(payload).replace(
     /%([0-9A-F]{2})/g,
@@ -140,7 +145,7 @@ function encodePresetToCode(preset: Preset): string {
   return `${PRESET_CODE_PREFIX}${base64}`;
 }
 
-function decodePresetFromCode(code: string): { name: string, snapshot: ConfSnapshot } | null {
+function decodePresetFromCode(code: string): { name: string, snapshot: ConfSnapshot, external?: unknown } | null {
   const trimmed = code.trim();
   if (!trimmed.startsWith(PRESET_CODE_PREFIX)) {
     return null;
@@ -183,6 +188,10 @@ export default defineComponent({
     baseImage: { type: Object as PropType<HTMLCanvasElement>, default: null },
     show: { type: Boolean, required: true },
     emojiSize: { type: Number, default: null },
+    // プリセットに「文字入力の内容」なども一緒に保存したい場合、App.vue側から
+    // 追加のスナップショットを取得/適用する関数を渡してもらう(任意)
+    getExternalSnapshot: { type: Function as PropType<() => unknown>, default: null },
+    applyExternalSnapshot: { type: Function as PropType<(s: unknown) => void>, default: null },
   },
   emits: [
     "render",
@@ -438,6 +447,7 @@ export default defineComponent({
         id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         name,
         snapshot: this.snapshotConf(),
+        external: this.getExternalSnapshot ? this.getExternalSnapshot() : undefined,
         savedAt: Date.now(),
       };
       this.presets = [preset, ...this.presets];
@@ -446,6 +456,9 @@ export default defineComponent({
     },
     applyPreset(preset: Preset): void {
       this.applyConfSnapshot(preset.snapshot);
+      if (preset.external !== undefined && this.applyExternalSnapshot) {
+        this.applyExternalSnapshot(preset.external);
+      }
       this.scheduleHistoryPush();
     },
     deletePreset(preset: Preset): void {
@@ -483,6 +496,7 @@ export default defineComponent({
         id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         name: decoded.name,
         snapshot: decoded.snapshot,
+        external: decoded.external,
         savedAt: Date.now(),
       };
       this.presets = [preset, ...this.presets];

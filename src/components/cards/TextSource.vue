@@ -149,6 +149,22 @@ export default defineComponent({
     selectPadding(padding: PaddingOption): void {
       this.conf.paddingValue = padding.value;
     },
+    // --- 履歴/プリセットからの復元用 -----------------------------------
+    getSnapshot(): Record<string, unknown> {
+      return JSON.parse(JSON.stringify(this.conf));
+    },
+    applySnapshot(snapshot: Record<string, unknown>): void {
+      // paddingは{label, value}のオブジェクト参照なので、PADDING_OPTIONSの中から
+      // 値が一致するものを探し直す(JSON化で参照が切れているため)
+      const padding = PADDING_OPTIONS.find(
+        (p) => p.value === (snapshot.padding as PaddingOption | undefined)?.value,
+      ) ?? PADDING_OPTIONS[0];
+      this.conf = {
+        ...this.conf,
+        ...snapshot,
+        padding,
+      } as typeof this.conf;
+    },
   },
 });
 </script>

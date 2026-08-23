@@ -10,7 +10,6 @@ import Button from "../inputs/Button.vue";
 import Checkbox from "../inputs/Checkbox.vue";
 import Space from "../global/Space.vue";
 import Card from "../global/Card.vue";
-import Fieldset from "../inputs/Fieldset.vue";
 import Effect from "../icons/Effect.vue";
 import Back from "../icons/Back.vue";
 import Save from "../icons/Save.vue";
@@ -18,34 +17,27 @@ import { NODE_ENV } from "../../utils/env";
 import {
   checkEmojiSize, formatKiB, SizeWarningLevel,
 } from "../../utils/sizeLimits";
-import {
-  GalleryEntry, loadGalleryFromStorage, addToGallery, removeFromGallery, clearGallery,
-  getGalleryLimit, setGalleryLimit,
-} from "../../utils/gallery";
-import NumberInput from "../inputs/Number.vue";
+import { addToGallery } from "../../utils/gallery";
 
 export default defineComponent({
   components: {
-    RawResult, Preview, Checkbox, Card, Space, Button, Effect, Back, Save, Fieldset, NumberInput,
+    RawResult, Preview, Checkbox, Card, Space, Button, Effect, Back, Save,
   },
   props: {
     images: { type: Array as PropType<Blob[][]>, required: true },
     name: { type: String, default: null },
     showTarget: { type: Boolean, required: false },
     getSettingsSnapshot: { type: Function as PropType<() => unknown>, default: null },
-    applySettingsSnapshot: { type: Function as PropType<(s: unknown) => void>, default: null },
   },
   emits: [
     "toggleShowTarget",
+    "saved",
   ],
   data() {
     return {
       previewMode: false,
       rounded: false,
       isDev: NODE_ENV === "development",
-      gallery: [] as GalleryEntry[],
-      showGallery: false,
-      galleryLimit: 10,
     };
   },
   computed: {
@@ -69,10 +61,6 @@ export default defineComponent({
       return checkEmojiSize(this.maxCellSize);
     },
   },
-  mounted() {
-    this.gallery = loadGalleryFromStorage();
-    this.galleryLimit = getGalleryLimit();
-  },
   methods: {
     formatKiB,
     onDownload(): void {
@@ -84,35 +72,10 @@ export default defineComponent({
       const firstCell = this.images[0]?.[0];
       const settings = this.getSettingsSnapshot ? this.getSettingsSnapshot() : null;
       if (firstCell) {
-        addToGallery(firstCell, filename, settings).then((updated) => {
-          this.gallery = updated;
+        addToGallery(firstCell, filename, settings).then(() => {
+          this.$emit("saved");
         });
       }
-    },
-    onLoadGalleryEntry(entry: GalleryEntry): void {
-      if (!entry.settings || !this.applySettingsSnapshot) {
-        return;
-      }
-      this.applySettingsSnapshot(entry.settings);
-    },
-    onRemoveGalleryEntry(id: string): void {
-      this.gallery = removeFromGallery(id);
-    },
-    onClearGallery(): void {
-      // eslint-disable-next-line no-alert
-      if (!window.confirm("履歴を全部削除しますか？")) {
-        return;
-      }
-      clearGallery();
-      this.gallery = [];
-    },
-    onChangeGalleryLimit(value: number): void {
-      this.galleryLimit = value;
-      this.gallery = setGalleryLimit(value);
-    },
-    formatDate(timestamp: number): string {
-      const d = new Date(timestamp);
-      return `${d.getMonth() + 1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")}`;
     },
   },
 });
@@ -181,51 +144,6 @@ export default defineComponent({
         絵文字を保存
       </Button>
     </Space>
-    <Fieldset label="作った絵文字の履歴">
-      <Space vertical full>
-        <p class="gallery-hint">
-          「絵文字を保存」を押すたびに、見た目のサムネイルとその時の設定を記録します(元のファイルそのものはブラウザに保存されません)。
-        </p>
-        <div class="gallery-limit-row">
-          <span class="gallery-limit-label">保存する件数(上限)</span>
-          <NumberInput
-              :model-value="galleryLimit"
-              :min="1"
-              :max="100"
-              style="width: 80px;"
-              @update:model-value="onChangeGalleryLimit" />
-        </div>
-        <p v-if="gallery.length === 0" class="gallery-empty">
-          まだ履歴はありません。
-        </p>
-        <template v-else>
-          <div class="gallery-grid">
-            <div v-for="entry in gallery" :key="entry.id" class="gallery-item">
-              <button
-                  type="button"
-                  class="gallery-thumb-button"
-                  :disabled="!entry.settings"
-                  :title="entry.settings ? '設定を読み込む' : '設定が記録されていません'"
-                  @click="onLoadGalleryEntry(entry)">
-                <img :src="entry.thumbnail" :alt="entry.name" class="gallery-thumb">
-              </button>
-              <span class="gallery-name">{{ entry.name }}</span>
-              <span class="gallery-date">{{ formatDate(entry.createdAt) }}</span>
-              <button
-                  type="button"
-                  class="gallery-remove"
-                  title="この履歴を削除"
-                  @click="onRemoveGalleryEntry(entry.id)">
-                ×
-              </button>
-            </div>
-          </div>
-          <Button type="text" danger name="履歴を全部削除" @click="onClearGallery">
-            履歴を全部削除
-          </Button>
-        </template>
-      </Space>
-    </Fieldset>
   </Space>
 </template>
 
@@ -276,106 +194,5 @@ export default defineComponent({
 
 .size-warning-both {
   color: var(--danger);
-}
-
-.gallery-hint {
-  margin: 0;
-  font-size: var(--fontSizeSmall, var(--fontSizeMedium));
-  color: var(--fg);
-  opacity: 0.6;
-}
-
-.gallery-empty {
-  margin: 0;
-  font-size: var(--fontSizeMedium);
-  color: var(--fg);
-  opacity: 0.6;
-}
-
-.gallery-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--spacingMedium);
-}
-
-.gallery-item {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  width: 80px;
-  gap: 2px;
-}
-
-.gallery-limit-row {
-  display: flex;
-  gap: var(--spacingMedium);
-  align-items: center;
-}
-
-.gallery-limit-label {
-  font-size: var(--fontSizeMedium);
-  color: var(--fg);
-}
-
-.gallery-thumb-button {
-  padding: 0;
-  cursor: pointer;
-  background: none;
-  border: none;
-}
-
-.gallery-thumb-button:disabled {
-  cursor: default;
-}
-
-.gallery-thumb-button:not(:disabled):hover .gallery-thumb {
-  border-color: var(--primary);
-}
-
-.gallery-thumb {
-  width: 64px;
-  height: 64px;
-  object-fit: cover;
-  background-image:
-    linear-gradient(45deg, var(--accentBg) 25%, transparent 25%, transparent 75%, var(--accentBg) 75%, var(--accentBg)),
-    linear-gradient(45deg, var(--accentBg) 25%, transparent 25%, transparent 75%, var(--accentBg) 75%, var(--accentBg));
-  background-position: 0 0, 6px 6px;
-  background-size: 12px 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--borderRadiusSmall, 6px);
-}
-
-.gallery-name {
-  overflow: hidden;
-  width: 100%;
-  font-size: var(--fontSizeSmall, var(--fontSizeMedium));
-  text-align: center;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.gallery-date {
-  font-size: var(--fontSizeSmall, var(--fontSizeMedium));
-  color: var(--fg);
-  opacity: 0.5;
-}
-
-.gallery-remove {
-  position: absolute;
-  top: -6px;
-  right: -6px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
-  font-size: 12px;
-  line-height: 1;
-  color: var(--bg);
-  cursor: pointer;
-  background-color: var(--danger);
-  border: none;
-  border-radius: 50%;
 }
 </style>
