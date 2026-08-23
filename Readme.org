@@ -257,7 +257,7 @@ woff 化にはこれ https://github.com/zk-phi/woff2sfnt-sfnt2woff を使って�
 ライセンス表記時の作者名は、アカウント名などから適当に持ってくるのではなく、
 なるべく正式な表記を探してコピーしてください。
 
-** このフォーク (cota4106/MEGAMOJI_Kaizo) について
+** このフォーク (cota4106/MEGAMOJI_Kaizo_Saka) について
 
 [[https://github.com/zk-phi/MEGAMOJI][本家 MEGAMOJI]] のカスタム版です。主な変更点は以下の通りです。
 
