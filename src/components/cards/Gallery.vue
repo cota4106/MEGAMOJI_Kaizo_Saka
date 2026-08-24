@@ -67,9 +67,14 @@ export default defineComponent({
                 type="button"
                 class="gallery-thumb-button"
                 :disabled="!entry.settings"
-                :title="entry.settings ? '設定を読み込む' : '設定が記録されていません'"
+                :title="entry.settings ? '設定を読み込む' : '設定が記録されていません(このバージョンの履歴機能を使う前に作られたものです)'"
                 @click="onLoad(entry)">
-              <img :src="entry.thumbnail" :alt="entry.name" class="gallery-thumb">
+              <img
+                  :src="entry.thumbnail"
+                  :alt="entry.name"
+                  class="gallery-thumb"
+                  :class="{ 'gallery-thumb-disabled': !entry.settings }">
+              <span v-if="!entry.settings" class="gallery-no-settings-badge">設定未記録</span>
             </button>
             <span class="gallery-name">{{ entry.name }}</span>
             <span class="gallery-date">{{ formatDate(entry.createdAt) }}</span>
@@ -132,6 +137,7 @@ export default defineComponent({
 }
 
 .gallery-thumb-button {
+  position: relative;
   padding: 0;
   cursor: pointer;
   background: none;
@@ -144,6 +150,25 @@ export default defineComponent({
 
 .gallery-thumb-button:not(:disabled):hover .gallery-thumb {
   border-color: var(--primary);
+}
+
+.gallery-thumb-disabled {
+  opacity: 0.4;
+  filter: grayscale(60%);
+}
+
+.gallery-no-settings-badge {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  padding: 1px 0;
+  font-size: 9px;
+  line-height: 1.4;
+  color: var(--bg);
+  text-align: center;
+  background-color: rgba(0, 0, 0, 0.6);
+  border-radius: 0 0 var(--borderRadiusSmall, 6px) var(--borderRadiusSmall, 6px);
 }
 
 .gallery-thumb {
