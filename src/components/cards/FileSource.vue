@@ -6,6 +6,7 @@ import { imgToCanvas } from "../../utils/canvas";
 import { decodeGif, DecodedGifFrame } from "../../utils/gifDecode";
 import { splitGifIntoCells } from "../../utils/gifSplit";
 import { loadFileAsArrayBuffer, prepareDownloadFile, extension } from "../../utils/file";
+import { suggestCellGrids, CellSuggestion } from "../../utils/cellSuggestion";
 import Card from "../global/Card.vue";
 import FileSelect from "../inputs/FileSelect.vue";
 import Select from "../inputs/Select.vue";
@@ -58,7 +59,18 @@ export default defineComponent({
       deep: true,
     },
   },
+  computed: {
+    gifCellSuggestions(): CellSuggestion[] {
+      if (!this.gif.width || !this.gif.height) {
+        return [];
+      }
+      return suggestCellGrids(this.gif.width / this.gif.height);
+    },
+  },
   methods: {
+    applyGifCellSuggestion(s: CellSuggestion): void {
+      this.gif.cells = [s.h, s.v];
+    },
     render(): void {
       if (this.conf.img) {
         if (this.conf.filter) {
@@ -177,6 +189,18 @@ export default defineComponent({
               <span>x</span>
               <NumberInput v-model="gif.cells[1]" :min="1" style="width: 80px;" />
             </div>
+            <div v-if="gifCellSuggestions.length > 0" class="gif-suggestions">
+              <span class="gif-suggestions-label">歪みが出にくいおすすめ:</span>
+              <button
+                  v-for="s in gifCellSuggestions"
+                  :key="`${s.h}x${s.v}`"
+                  type="button"
+                  class="gif-suggestion-chip"
+                  :class="{ active: s.h === gif.cells[0] && s.v === gif.cells[1] }"
+                  @click="applyGifCellSuggestion(s)">
+                {{ s.h }}x{{ s.v }}
+              </button>
+            </div>
             <Button
                 type="text"
                 name="分割してダウンロード"
@@ -218,5 +242,38 @@ export default defineComponent({
   display: flex;
   gap: var(--spacingMedium);
   align-items: center;
+}
+
+.gif-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacingSmall);
+  align-items: center;
+}
+
+.gif-suggestions-label {
+  font-size: var(--fontSizeSmall, var(--fontSizeMedium));
+  color: var(--fg);
+  opacity: 0.6;
+}
+
+.gif-suggestion-chip {
+  padding: 2px 10px;
+  font-size: var(--fontSizeSmall, var(--fontSizeMedium));
+  color: var(--fg);
+  cursor: pointer;
+  background-color: var(--accentBg);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+}
+
+.gif-suggestion-chip:hover {
+  border-color: var(--primary);
+}
+
+.gif-suggestion-chip.active {
+  color: var(--bg);
+  background-color: var(--primary);
+  border-color: var(--primary);
 }
 </style>
