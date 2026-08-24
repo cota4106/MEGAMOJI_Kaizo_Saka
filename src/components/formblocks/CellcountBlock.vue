@@ -19,7 +19,7 @@ export default defineComponent({
   ],
   computed: {
     suggestions(): CellSuggestion[] {
-      if (!this.aspect || !Number.isFinite(this.aspect) || this.aspect <= 0) {
+      if (!this.aspect || !globalThis.Number.isFinite(this.aspect) || this.aspect <= 0) {
         return [];
       }
       return suggestCellGrids(this.aspect);
