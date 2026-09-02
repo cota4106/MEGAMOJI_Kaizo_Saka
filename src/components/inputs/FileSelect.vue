@@ -29,7 +29,7 @@ export default defineComponent({
       if (this.type === "img") {
         return "image/*";
       } else if (this.type === "font") {
-        return ".otf,.ttf,.woff,.woff2,font/otf,font/ttf,font/woff,font/woff2";
+        return "font/otf,font/ttf,font/woff";
       } else {
         return null;
       }

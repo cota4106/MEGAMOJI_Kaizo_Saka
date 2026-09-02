@@ -53,23 +53,7 @@ export default defineComponent({
     });
   },
   methods: {
-    onLoadFont(font: FontFace | File) {
-      if (font instanceof File) {
-        const family = `custom-font-${Date.now()}`;
-        const url = URL.createObjectURL(font);
-        const style = document.createElement("style");
-        style.textContent = `@font-face {\n          font-family: "${family}";\n          src: url("${url}") format("opentype");\n          font-style: normal;\n          font-weight: 700;\n        }`;
-        document.head.appendChild(style);
-        document.fonts.load(`bold 1em "${family}"`).then(() => {
-          if (document.fonts.check(`bold 1em "${family}"`)) {
-            this.$emit("update:modelValue", `bold 1em "${family}"`);
-          }
-        }).catch(() => {
-          document.head.removeChild(style);
-          URL.revokeObjectURL(url);
-        });
-        return;
-      }
+    onLoadFont(font: FontFace) {
       font.load().then(() => {
         document.fonts.add(font);
         this.$emit("update:modelValue", `bold 1em ${font.family}`);
