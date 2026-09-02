@@ -51,10 +51,23 @@ export default defineComponent({
             });
           });
         } else if (this.type === "font") {
-          loadFileAsArrayBuffer(this.file).then((buffer) => {
-            this.$emit("load", new FontFace(`custom-font-${customFontId}`, buffer));
-            customFontId += 1;
-          });
+          if (/\.otf$/i.test(this.file.name)) {
+            loadFileAsBlobURL(this.file).then((dataUrl) => {
+              this.$emit(
+                "load",
+                new FontFace(
+                  `custom-font-${customFontId}`,
+                  `url("${dataUrl}") format("opentype")`,
+                ),
+              );
+              customFontId += 1;
+            });
+          } else {
+            loadFileAsArrayBuffer(this.file).then((buffer) => {
+              this.$emit("load", new FontFace(`custom-font-${customFontId}`, buffer));
+              customFontId += 1;
+            });
+          }
         }
       }
       e.target.value = "";
