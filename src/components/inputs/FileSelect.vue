@@ -29,7 +29,7 @@ export default defineComponent({
       if (this.type === "img") {
         return "image/*";
       } else if (this.type === "font") {
-        return "font/otf,font/ttf,font/woff";
+        return ".otf,.ttf,.woff,.woff2,font/otf,font/ttf,font/woff,font/woff2";
       } else {
         return null;
       }
@@ -51,23 +51,10 @@ export default defineComponent({
             });
           });
         } else if (this.type === "font") {
-          if (/\.otf$/i.test(this.file.name)) {
-            loadFileAsBlobURL(this.file).then((dataUrl) => {
-              this.$emit(
-                "load",
-                new FontFace(
-                  `custom-font-${customFontId}`,
-                  `url("${dataUrl}") format("opentype")`,
-                ),
-              );
-              customFontId += 1;
-            });
-          } else {
-            loadFileAsArrayBuffer(this.file).then((buffer) => {
-              this.$emit("load", new FontFace(`custom-font-${customFontId}`, buffer));
-              customFontId += 1;
-            });
-          }
+          loadFileAsArrayBuffer(this.file).then((buffer) => {
+            this.$emit("load", new FontFace(`custom-font-${customFontId}`, buffer));
+            customFontId += 1;
+          });
         }
       }
       e.target.value = "";
