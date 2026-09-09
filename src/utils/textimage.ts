@@ -14,6 +14,16 @@ const makeTextImageSingleLine = (
   outlineY: number,
   gradient: GradientColorStop[],
 ): HTMLCanvasElement => {
+  // 空行は文字を描画しないため、そのままshrinkCanvasすると高さがほぼ0まで
+  // 切り詰められてしまい、改行しても空行として見えなくなってしまう。
+  // 他の行と揃うよう、通常の行の高さぶんだけ確保した透明なcanvasを返す。
+  if (line === "") {
+    const emptyCanvas = document.createElement("canvas");
+    emptyCanvas.width = 1;
+    emptyCanvas.height = fontHeight;
+    return emptyCanvas;
+  }
+
   const canvas = document.createElement("canvas");
   canvas.width = fontHeight * (line.length || 1) * 2;
   canvas.height = fontHeight * 2;
