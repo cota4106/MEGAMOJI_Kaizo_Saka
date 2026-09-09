@@ -10,6 +10,7 @@ import webglFocusLine from "../webgleffects/focusLine";
 import webglGlitch from "../webgleffects/glitch";
 import webglMosaic from "../webgleffects/mosaic";
 import webglExplode from "../webgleffects/explode";
+import webglShatter from "../webgleffects/shatter";
 
 export default [
   {
@@ -83,6 +84,14 @@ export default [
         ],
       },
       { label: "爆散", value: webglExplode },
+      {
+        label: "粉々",
+        value: webglShatter,
+        params: [
+          { key: "gridSize", label: "細かさ", min: 4, max: 20, step: 1, default: 10 },
+          { key: "strength", label: "強さ", min: 0.2, max: 2, step: 0.05, default: 0.8 },
+        ],
+      },
     ],
   },
 ];
