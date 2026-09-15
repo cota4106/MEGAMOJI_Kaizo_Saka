@@ -2,13 +2,16 @@ import * as Zip from "jszip";
 
 export const extension = (blob: Blob): string => blob.type.split("/")[1];
 
-export const prepareDownloadFile = (images: Blob[][]): Promise<Blob> => {
+export const prepareDownloadFile = (images: Blob[][], namePrefix?: string): Promise<Blob> => {
   if (images.length === 1 && images[0].length === 1) {
     return Promise.resolve(images[0][0]);
   } else {
     const zip = new Zip();
     images.forEach((row, i) => row.forEach((cell, j) => {
-      zip.file(`${i + 1}-${j + 1}.${extension(cell)}`, cell);
+      const filename = namePrefix
+        ? `${namePrefix}_${i + 1}_${j + 1}.${extension(cell)}`
+        : `${i + 1}-${j + 1}.${extension(cell)}`;
+      zip.file(filename, cell);
     }));
     return zip.generateAsync({ type: "blob" });
   }
