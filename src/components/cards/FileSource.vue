@@ -45,6 +45,7 @@ export default defineComponent({
         width: 0,
         height: 0,
         cells: [2, 2] as [number, number],
+        emojiName: "",
         status: "idle" as GifStatus,
         progress: null as ({ done: number, total: number } | null),
         errorMessage: "",
@@ -130,8 +131,11 @@ export default defineComponent({
             this.gif.progress = { done, total };
           },
         );
-        const download = await prepareDownloadFile(images);
-        const baseName = filenamify(
+        const namePrefix = this.gif.emojiName.trim()
+          ? filenamify(this.gif.emojiName.trim(), { replacement: "" }).normalize()
+          : undefined;
+        const download = await prepareDownloadFile(images, namePrefix);
+        const baseName = namePrefix || filenamify(
           (this.gif.fileName ?? "gif").replace(/\.gif$/i, ""),
           { replacement: "" },
         ).normalize() || "megamoji-gif";
@@ -201,6 +205,11 @@ export default defineComponent({
                 {{ s.h }}x{{ s.v }}
               </button>
             </div>
+            <input
+                v-model="gif.emojiName"
+                type="text"
+                class="gif-emoji-name"
+                placeholder="絵文字名(例: Claude)。ファイル名が 名前_行_列 になります">
             <Button
                 type="text"
                 name="分割してダウンロード"
@@ -275,5 +284,26 @@ export default defineComponent({
   color: var(--bg);
   background-color: var(--primary);
   border-color: var(--primary);
+}
+
+.gif-emoji-name {
+  box-sizing: border-box;
+  width: 100%;
+  padding: var(--spacingSmall) var(--spacingInlineSmall);
+  font-size: var(--fontSizeMedium);
+  color: var(--fg);
+  background-color: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--borderRadiusSmall, 6px);
+  outline: none;
+}
+
+.gif-emoji-name:hover {
+  border-color: var(--primary);
+}
+
+.gif-emoji-name:focus {
+  border-color: var(--primary);
+  box-shadow: var(--primaryShadow);
 }
 </style>

@@ -13,6 +13,7 @@ import Card from "../global/Card.vue";
 import Effect from "../icons/Effect.vue";
 import Back from "../icons/Back.vue";
 import Save from "../icons/Save.vue";
+import Input from "../inputs/Input.vue";
 import { NODE_ENV } from "../../utils/env";
 import {
   checkEmojiSize, formatKiB, SizeWarningLevel,
@@ -21,7 +22,7 @@ import { addToGallery } from "../../utils/gallery";
 
 export default defineComponent({
   components: {
-    RawResult, Preview, Checkbox, Card, Space, Button, Effect, Back, Save,
+    RawResult, Preview, Checkbox, Card, Space, Button, Effect, Back, Save, Input,
   },
   props: {
     images: { type: Array as PropType<Blob[][]>, required: true },
@@ -38,6 +39,7 @@ export default defineComponent({
       previewMode: false,
       rounded: false,
       isDev: NODE_ENV === "development",
+      emojiName: "",
     };
   },
   computed: {
@@ -64,8 +66,14 @@ export default defineComponent({
   methods: {
     formatKiB,
     onDownload(): void {
-      const download = prepareDownloadFile(this.images);
-      const filename = filenamify(this.name ?? "", { replacement: "" }).normalize() || "megamoji";
+      // 分割時は「名前_行_列」形式のファイル名にする(Slackへの絵文字登録名としてそのまま使いやすいように)
+      const namePrefix = this.isSplit && this.emojiName.trim()
+        ? filenamify(this.emojiName.trim(), { replacement: "" }).normalize()
+        : undefined;
+      const download = prepareDownloadFile(this.images, namePrefix);
+      const filename = namePrefix
+        || filenamify(this.name ?? "", { replacement: "" }).normalize()
+        || "megamoji";
       download.then((res) => saveAs(res, `${filename}.${extension(res)}`));
       Analytics.download();
       // 履歴(ギャラリー)にサムネイルと、その時の設定を記録する。先頭のマスの絵を代表として使う
@@ -116,6 +124,12 @@ export default defineComponent({
         <Checkbox v-model="rounded" name="角丸">
           {{ "角丸プレビュー" }}
         </Checkbox>
+        <Input
+            v-if="isSplit"
+            v-model="emojiName"
+            name="絵文字名"
+            block
+            placeholder="絵文字名(例: Claude)。ファイル名が 名前_行_列 になります" />
       </Space>
     </Card>
     <Space class="buttons">
