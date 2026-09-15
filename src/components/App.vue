@@ -9,6 +9,7 @@ import FukumojiSource from "./cards/FukumojiSource.vue";
 import Target from "./cards/Target.vue";
 import Result from "./cards/Result.vue";
 import Gallery from "./cards/Gallery.vue";
+import CopyPasteTool from "./cards/CopyPasteTool.vue";
 import BaseImage from "./cards/BaseImage.vue";
 import Tutorial from "./cards/Tutorial.vue";
 import TabButton from "./inputs/TabButton.vue";
@@ -34,6 +35,7 @@ export default defineComponent({
     Target,
     Result,
     Gallery,
+    CopyPasteTool,
     BaseImage,
     Tutorial,
     TabButton,
@@ -254,6 +256,7 @@ export default defineComponent({
                 @remove="onRemoveGalleryEntry"
                 @clear="onClearGallery"
                 @change-limit="onChangeGalleryLimit" />
+            <CopyPasteTool />
           </div>
         </GridItem>
       </Grid>
