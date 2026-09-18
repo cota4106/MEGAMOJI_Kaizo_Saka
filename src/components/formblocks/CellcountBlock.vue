@@ -54,28 +54,51 @@ export default defineComponent({
             style="width: 100px;"
             @update:model-value="$emit('update:modelValue', [modelValue[0], $event])" />
       </Space>
-      <div v-if="suggestions.length > 0" class="suggestions">
-        <span class="suggestions-label">歪みが出にくいおすすめ:</span>
-        <button
-            v-for="s in suggestions"
-            :key="`${s.h}x${s.v}`"
-            type="button"
-            class="suggestion-chip"
-            :class="{ active: s.h === modelValue[0] && s.v === modelValue[1] }"
-            @click="applySuggestion(s)">
-          {{ s.h }}x{{ s.v }}
-        </button>
-      </div>
+      <span class="order-hint">(横 x 縦)</span>
+      <details v-if="suggestions.length > 0" class="suggestions-details">
+        <summary class="suggestions-summary">
+          歪みが出にくいおすすめを見る{{ isCurrentSuggested ? "(適用中)" : "" }}
+        </summary>
+        <div class="suggestions">
+          <button
+              v-for="s in suggestions"
+              :key="`${s.h}x${s.v}`"
+              type="button"
+              class="suggestion-chip"
+              :class="{ active: s.h === modelValue[0] && s.v === modelValue[1] }"
+              @click="applySuggestion(s)">
+            {{ s.h }}x{{ s.v }}
+          </button>
+        </div>
+      </details>
     </Space>
   </Fieldset>
 </template>
 
 <style scoped>
+.order-hint {
+  margin-top: calc(var(--spacingSmall) * -1);
+  font-size: var(--fontSizeSmall, var(--fontSizeMedium));
+  color: var(--fg);
+  opacity: 0.5;
+}
+
+.suggestions-details {
+  font-size: var(--fontSizeSmall, var(--fontSizeMedium));
+}
+
+.suggestions-summary {
+  color: var(--primary);
+  cursor: pointer;
+  user-select: none;
+}
+
 .suggestions {
   display: flex;
   flex-wrap: wrap;
   gap: var(--spacingSmall);
   align-items: center;
+  margin-top: var(--spacingSmall);
 }
 
 .suggestions-label {
