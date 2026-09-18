@@ -34,6 +34,7 @@ export default defineComponent({
   data() {
     return {
       FILTER_OPTIONS: filters,
+      gifPasteTextCopied: false,
       conf: {
         img: null as (HTMLImageElement | null),
         filter: null as (FilterOption | null),
@@ -67,10 +68,44 @@ export default defineComponent({
       }
       return suggestCellGrids(this.gif.width / this.gif.height);
     },
+    gifPasteText(): string {
+      if (this.gif.frames.length === 0 || !this.gif.emojiName.trim()) {
+        return "";
+      }
+      const safeName = filenamify(this.gif.emojiName.trim(), { replacement: "" }).normalize();
+      if (!safeName) {
+        return "";
+      }
+      const [hCells, vCells] = this.gif.cells;
+      const lines: string[] = [];
+      for (let row = 1; row <= vCells; row += 1) {
+        const cells: string[] = [];
+        for (let col = 1; col <= hCells; col += 1) {
+          cells.push(`:${safeName}_${row}_${col}:`);
+        }
+        lines.push(cells.join(""));
+      }
+      return lines.join("\n");
+    },
   },
   methods: {
     applyGifCellSuggestion(s: CellSuggestion): void {
       this.gif.cells = [s.h, s.v];
+    },
+    async onCopyGifPasteText(): Promise<void> {
+      if (!this.gifPasteText) {
+        return;
+      }
+      try {
+        await navigator.clipboard.writeText(this.gifPasteText);
+        this.gifPasteTextCopied = true;
+        window.setTimeout(() => {
+          this.gifPasteTextCopied = false;
+        }, 2000);
+      } catch (e) {
+        // eslint-disable-next-line no-alert
+        window.prompt("このテキストをコピーしてください:", this.gifPasteText);
+      }
     },
     render(): void {
       if (this.conf.img) {
@@ -193,18 +228,21 @@ export default defineComponent({
               <span>x</span>
               <NumberInput v-model="gif.cells[1]" :min="1" style="width: 80px;" />
             </div>
-            <div v-if="gifCellSuggestions.length > 0" class="gif-suggestions">
-              <span class="gif-suggestions-label">歪みが出にくいおすすめ:</span>
-              <button
-                  v-for="s in gifCellSuggestions"
-                  :key="`${s.h}x${s.v}`"
-                  type="button"
-                  class="gif-suggestion-chip"
-                  :class="{ active: s.h === gif.cells[0] && s.v === gif.cells[1] }"
-                  @click="applyGifCellSuggestion(s)">
-                {{ s.h }}x{{ s.v }}
-              </button>
-            </div>
+            <span class="gif-order-hint">(横 x 縦)</span>
+            <details v-if="gifCellSuggestions.length > 0" class="gif-suggestions-details">
+              <summary class="gif-suggestions-summary">歪みが出にくいおすすめを見る</summary>
+              <div class="gif-suggestions">
+                <button
+                    v-for="s in gifCellSuggestions"
+                    :key="`${s.h}x${s.v}`"
+                    type="button"
+                    class="gif-suggestion-chip"
+                    :class="{ active: s.h === gif.cells[0] && s.v === gif.cells[1] }"
+                    @click="applyGifCellSuggestion(s)">
+                  {{ s.h }}x{{ s.v }}
+                </button>
+              </div>
+            </details>
             <input
                 v-model="gif.emojiName"
                 type="text"
@@ -222,6 +260,22 @@ export default defineComponent({
                 ? `処理中... (${gif.progress ? gif.progress.done : 0}/${gif.progress ? gif.progress.total : 0}コマ)`
                 : "分割してダウンロード" }}
             </Button>
+            <div v-if="gifPasteText" class="gif-paste-text-block">
+              <span class="gif-paste-text-label">
+                Slack貼り付け用テキスト(横{{ gif.cells[0] }} x 縦{{ gif.cells[1] }})
+              </span>
+              <textarea
+                  class="gif-paste-text-output"
+                  :value="gifPasteText"
+                  readonly
+                  rows="3"></textarea>
+              <Button type="text" name="コピー" @click="onCopyGifPasteText">
+                <template #icon>
+                  📋
+                </template>
+                {{ gifPasteTextCopied ? "コピーしました！" : "コピー" }}
+              </Button>
+            </div>
           </template>
         </Space>
       </Fieldset>
@@ -284,6 +338,48 @@ export default defineComponent({
   color: var(--bg);
   background-color: var(--primary);
   border-color: var(--primary);
+}
+
+.gif-order-hint {
+  margin-top: calc(var(--spacingSmall) * -1);
+  font-size: var(--fontSizeSmall, var(--fontSizeMedium));
+  color: var(--fg);
+  opacity: 0.5;
+}
+
+.gif-suggestions-details {
+  font-size: var(--fontSizeSmall, var(--fontSizeMedium));
+}
+
+.gif-suggestions-summary {
+  color: var(--primary);
+  cursor: pointer;
+  user-select: none;
+}
+
+.gif-paste-text-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacingSmall);
+}
+
+.gif-paste-text-label {
+  font-size: var(--fontSizeMedium);
+  color: var(--fg);
+  opacity: 0.7;
+}
+
+.gif-paste-text-output {
+  box-sizing: border-box;
+  width: 100%;
+  padding: var(--spacingSmall) var(--spacingInlineSmall);
+  font-family: monospace;
+  font-size: var(--fontSizeMedium);
+  color: var(--fg);
+  background-color: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--borderRadiusSmall, 6px);
+  resize: vertical;
 }
 
 .gif-emoji-name {

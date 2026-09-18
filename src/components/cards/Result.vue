@@ -40,6 +40,7 @@ export default defineComponent({
       rounded: false,
       isDev: NODE_ENV === "development",
       emojiName: "",
+      pasteTextCopied: false,
     };
   },
   computed: {
@@ -62,13 +63,43 @@ export default defineComponent({
     sizeWarning(): SizeWarningLevel {
       return checkEmojiSize(this.maxCellSize);
     },
+    // 分割時の「絵文字名」欄が空なら、分割前から設定されていた名前を使う
+    effectiveEmojiName(): string {
+      return this.emojiName.trim() || (this.name ?? "").trim();
+    },
+    splitCols(): number {
+      return this.images[0]?.length ?? 0;
+    },
+    splitRows(): number {
+      return this.images.length;
+    },
+    // 分割時、Slackにそのまま貼り付けて並べられる形式のテキスト
+    pasteText(): string {
+      if (!this.isSplit || !this.effectiveEmojiName) {
+        return "";
+      }
+      const safeName = filenamify(this.effectiveEmojiName, { replacement: "" }).normalize();
+      if (!safeName) {
+        return "";
+      }
+      const lines: string[] = [];
+      for (let row = 1; row <= this.splitRows; row += 1) {
+        const cells: string[] = [];
+        for (let col = 1; col <= this.splitCols; col += 1) {
+          cells.push(`:${safeName}_${row}_${col}:`);
+        }
+        lines.push(cells.join(""));
+      }
+      return lines.join("\n");
+    },
   },
   methods: {
     formatKiB,
     onDownload(): void {
       // 分割時は「名前_行_列」形式のファイル名にする(Slackへの絵文字登録名としてそのまま使いやすいように)
-      const namePrefix = this.isSplit && this.emojiName.trim()
-        ? filenamify(this.emojiName.trim(), { replacement: "" }).normalize()
+      // 名前が未入力なら、分割前から設定されていた名前を使う
+      const namePrefix = this.isSplit && this.effectiveEmojiName
+        ? filenamify(this.effectiveEmojiName, { replacement: "" }).normalize()
         : undefined;
       const download = prepareDownloadFile(this.images, namePrefix);
       const filename = namePrefix
@@ -83,6 +114,22 @@ export default defineComponent({
         addToGallery(firstCell, filename, settings).then(() => {
           this.$emit("saved");
         });
+      }
+    },
+    async onCopyPasteText(): Promise<void> {
+      if (!this.pasteText) {
+        return;
+      }
+      try {
+        await navigator.clipboard.writeText(this.pasteText);
+        this.pasteTextCopied = true;
+        window.setTimeout(() => {
+          this.pasteTextCopied = false;
+        }, 2000);
+      } catch (e) {
+        // クリップボードAPIが使えない場合は手動コピー用に表示する
+        // eslint-disable-next-line no-alert
+        window.prompt("このテキストをコピーしてください:", this.pasteText);
       }
     },
   },
@@ -129,7 +176,21 @@ export default defineComponent({
             v-model="emojiName"
             name="絵文字名"
             block
-            placeholder="絵文字名(例: Claude)。ファイル名が 名前_行_列 になります" />
+            :placeholder="`絵文字名(例: Claude)。未入力なら「${name || '(自動の名前)'}」を使います`" />
+        <div v-if="isSplit && pasteText" class="paste-text-block">
+          <span class="paste-text-label">Slack貼り付け用テキスト(横{{ splitCols }} x 縦{{ splitRows }})</span>
+          <textarea
+              class="paste-text-output"
+              :value="pasteText"
+              readonly
+              rows="3"></textarea>
+          <Button type="text" name="コピー" @click="onCopyPasteText">
+            <template #icon>
+              📋
+            </template>
+            {{ pasteTextCopied ? "コピーしました！" : "コピー" }}
+          </Button>
+        </div>
       </Space>
     </Card>
     <Space class="buttons">
@@ -208,5 +269,30 @@ export default defineComponent({
 
 .size-warning-both {
   color: var(--danger);
+}
+
+.paste-text-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacingSmall);
+}
+
+.paste-text-label {
+  font-size: var(--fontSizeMedium);
+  color: var(--fg);
+  opacity: 0.7;
+}
+
+.paste-text-output {
+  box-sizing: border-box;
+  width: 100%;
+  padding: var(--spacingSmall) var(--spacingInlineSmall);
+  font-family: monospace;
+  font-size: var(--fontSizeMedium);
+  color: var(--fg);
+  background-color: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--borderRadiusSmall, 6px);
+  resize: vertical;
 }
 </style>

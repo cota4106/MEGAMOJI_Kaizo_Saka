@@ -13,8 +13,8 @@ export default defineComponent({
   data() {
     return {
       name: "",
-      rows: 2,
       cols: 2,
+      rows: 2,
       copied: false,
     };
   },
@@ -71,10 +71,10 @@ export default defineComponent({
             placeholder="絵文字名(例: Claude)" />
       </div>
       <div class="copytool-row">
-        <span class="copytool-label">マス数(縦 x 横)</span>
-        <NumberInput v-model="rows" :min="1" style="width: 80px;" />
-        <span>x</span>
+        <span class="copytool-label">マス数(横 x 縦)</span>
         <NumberInput v-model="cols" :min="1" style="width: 80px;" />
+        <span>x</span>
+        <NumberInput v-model="rows" :min="1" style="width: 80px;" />
       </div>
       <textarea
           class="copytool-output"
