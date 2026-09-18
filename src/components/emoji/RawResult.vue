@@ -15,16 +15,21 @@ export default defineComponent({
         v-for="(col, j) in row"
         :key="j"
         :class="`result-cell ${ rounded ? 'mi2' : ''}`"
+        :style="{ width: `${100 / row.length}%` }"
         :src="col">
   </div>
 </template>
 
 <style scoped>
 .result-raw {
+  display: flex;
+  flex-wrap: nowrap;
   line-height: 0;
 }
 
 .result-cell {
+  box-sizing: border-box;
+  height: auto;
   border: 1px solid #aaa;
 }
 
