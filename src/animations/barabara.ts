@@ -20,12 +20,28 @@ const animationBarabara: Animation = (
   cellWidth,
   cellHeight,
 ) => {
-  // 0-0.15はそのまま表示、0.15-1.0で散る
+  // 0-0.12は溜めて膨らむ、0.12-1.0でパンッと弾けて散る
   // 1フレーム目 = ちゃんとした絵、というMEGAMOJIのお約束を守るため
-  const raw = (keyframe - 0.15) / 0.85;
-  const p = raw <= 0 ? 0 : raw ** 1.5;
+  const BURST_START = 0.12;
+  let t: number;
+  let inflate: number;
+  if (keyframe < BURST_START) {
+    t = 0;
+    inflate = 1 + 0.18 * (keyframe / BURST_START);
+  } else {
+    const tt = (keyframe - BURST_START) / (1 - BURST_START);
+    // easeOutCubic = 初速が速い = 弾ける感じ
+    t = 1 - (1 - tt) ** 3;
+    // 弾けた瞬間に一気に元のサイズに戻す
+    const shrink = Math.min(1, tt * 4);
+    inflate = 1.18 - 0.18 * shrink;
+  }
+  const p = t;
 
   // 描画エリア = 中央の cellWidth/2 x cellHeight/2
+  // inflate = 中心から膨らむ (溜め→弾け)
+  const centerX = cellWidth / 2;
+  const centerY = cellHeight / 2;
   const baseX = cellWidth / 4;
   const baseY = cellHeight / 4;
   const pw = (cellWidth / 2) / COLS;
@@ -40,13 +56,15 @@ const animationBarabara: Animation = (
       const dist = 0.3 + rand(n * 3 + 2) * 0.7; // 0.3-1.0
       const rotMax = (rand(n * 3 + 3) - 0.5) * Math.PI * 4;
 
-      const dx = Math.cos(angle) * dist * p * cellWidth * 0.8;
+      const dx = Math.cos(angle) * dist * p * cellWidth * 1.0;
       // 重力っぽく下に落ちる分を足す
-      const dy = Math.sin(angle) * dist * p * cellHeight * 0.8
-        + p * p * cellHeight * 0.3;
+      const dy = Math.sin(angle) * dist * p * cellHeight * 1.0
+        + p * p * cellHeight * 0.35;
 
-      const cx = baseX + ix * pw + pw / 2 + dx;
-      const cy = baseY + iy * ph + ph / 2 + dy;
+      const bx = baseX + ix * pw + pw / 2;
+      const by = baseY + iy * ph + ph / 2;
+      const cx = centerX + (bx - centerX) * inflate + dx;
+      const cy = centerY + (by - centerY) * inflate + dy;
       const rot = rotMax * p;
 
       const sx = offsetH + ix * sw;
@@ -55,8 +73,9 @@ const animationBarabara: Animation = (
       ctx.save();
       ctx.translate(cx, cy);
       ctx.rotate(rot);
-      // 最後はほぼ透明にしてループ時のポップを和らげる
-      ctx.globalAlpha = 1 - p * 0.9;
+      // 弾けてる最中は見せて、後半で消す (ループ時のポップ緩和)
+      const fade = p <= 0.4 ? 0 : (p - 0.4) / 0.6;
+      ctx.globalAlpha = 1 - fade * 0.9;
       ctx.drawImage(image, sx, sy, sw, sh, -pw / 2, -ph / 2, pw, ph);
       ctx.restore();
     }
