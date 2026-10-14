@@ -8,6 +8,7 @@ import animationScroll from "../animations/scroll";
 import animationScrollVertical from "../animations/scrollVertical";
 import animationXile from "../animations/xile";
 import animationScrollFull from "../animations/scrollFull";
+import animationBarabara from "../animations/barabara";
 
 export default [
   { label: "スクロール", value: animationScroll },
@@ -20,4 +21,5 @@ export default [
   { label: "乾杯", value: animationKanpai },
   { label: "乾杯 (左利き)", value: animationKanpaiLefty },
   { label: "ザイル", value: animationXile },
+  { label: "バラバラ", value: animationBarabara },
 ];
