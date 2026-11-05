@@ -6,6 +6,8 @@ type Options = {
   width: number,
   height: number,
   transparent: boolean,
+  /** パレットの色数(省略時256)。動画→GIFのサイズ最適化で減らす */
+  colors?: number,
 };
 
 // eslint-disable-next-line no-restricted-globals, @typescript-eslint/no-explicit-any
@@ -22,7 +24,7 @@ const quantizeGlobal = () => {
   frames.forEach((frame, ix) => {
     mergedFrames.set(frame.data, ix * width * height * 4);
   });
-  const palette = quantize(mergedFrames, 256, { format: "rgb565" });
+  const palette = quantize(mergedFrames, options.colors ?? 256, { format: "rgb565" });
   return palette;
 };
 

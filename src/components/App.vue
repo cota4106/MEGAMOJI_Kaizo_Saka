@@ -7,6 +7,7 @@ import TextSource from "./cards/TextSource.vue";
 import FileSource from "./cards/FileSource.vue";
 import FukumojiSource from "./cards/FukumojiSource.vue";
 import OverlayEditor from "./cards/OverlayEditor.vue";
+import VideoToGif from "./cards/VideoToGif.vue";
 import { OverlayItem, compositeOverlays, sanitizeOverlays } from "../utils/overlay";
 import Target from "./cards/Target.vue";
 import Result from "./cards/Result.vue";
@@ -35,6 +36,7 @@ export default defineComponent({
     FileSource,
     FukumojiSource,
     OverlayEditor,
+    VideoToGif,
     Target,
     Result,
     Gallery,
@@ -294,6 +296,8 @@ export default defineComponent({
               v-model="overlays"
               :show="(ui.mode == 'text' || ui.mode == 'file') && !ui.showTargetPanel"
               :source="sourceImage" />
+          <VideoToGif
+              :show="ui.mode == 'file' && !ui.showTargetPanel" />
           <Target
               ref="targetRef"
               v-model:emoji-size="emojiSize"
