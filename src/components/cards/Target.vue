@@ -232,6 +232,7 @@ export default defineComponent({
         transparent: false,
       },
       showDetails: false,
+      splitOpen: false,
       devMode: false,
       /* internals */
       running: false,
@@ -266,6 +267,15 @@ export default defineComponent({
     },
   },
   watch: {
+    // 履歴・プリセット・ギャラリーなどで分割ありの設定が復元されたときは、分割欄を開いて見えるようにする
+    "conf.cells": {
+      handler(): void {
+        if (this.conf.cells[0] * this.conf.cells[1] > 1) {
+          this.splitOpen = true;
+        }
+      },
+      deep: true,
+    },
     baseImage: {
       handler(): void {
         if (this.baseImage) {
@@ -568,6 +578,14 @@ export default defineComponent({
         this.conf.targetAspect = aspect;
       }
     },
+    toggleSplit(value: boolean): void {
+      this.splitOpen = value;
+      if (!value && (this.conf.cells[0] !== 1 || this.conf.cells[1] !== 1)) {
+        // 閉じたら分割なし(1x1)に戻す
+        this.conf.cells = [1, 1];
+        this.refreshDefaultSettings();
+      }
+    },
     selectSpeed(speed: SpeedOption): void {
       this.conf.duration = speed.value;
     },
@@ -660,12 +678,6 @@ export default defineComponent({
         </template>
         やり直す
       </Button>
-    </div>
-    <div v-if="!devMode" class="cellcount-top">
-      <CellcountBlock
-          v-model="conf.cells"
-          :aspect="imageAspect"
-          @update:model-value="refreshDefaultSettings" />
     </div>
     <Fieldset label="プリセット" class="preset-fieldset">
       <Space vertical full>
@@ -841,6 +853,19 @@ export default defineComponent({
               </Checkbox>
             </Space>
           </Fieldset>
+          <Space vertical full>
+            <Checkbox
+                :model-value="splitOpen"
+                name="分割する"
+                @update:model-value="toggleSplit">
+              {{ "分割する(大きい絵文字を複数マスに分けて使う)" }}
+            </Checkbox>
+            <CellcountBlock
+                v-if="splitOpen"
+                v-model="conf.cells"
+                :aspect="imageAspect"
+                @update:model-value="refreshDefaultSettings" />
+          </Space>
         </Space>
       </GridItem>
     </Grid>
@@ -935,9 +960,5 @@ export default defineComponent({
   margin: 0;
   font-size: var(--fontSizeSmall, var(--fontSizeMedium));
   color: var(--danger);
-}
-
-.cellcount-top {
-  margin-bottom: var(--spacingLarge, 16px);
 }
 </style>
