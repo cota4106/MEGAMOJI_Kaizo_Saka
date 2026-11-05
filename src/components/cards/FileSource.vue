@@ -47,6 +47,10 @@ export default defineComponent({
         height: 0,
         cells: [2, 2] as [number, number],
         emojiName: "",
+        limitKB: "" as string, // 分割後の1つ1つの最大サイズ(KB)。空欄なら制限なし
+        lockResolution: false,
+        resultNote: "" as string,
+        resultWarn: false,
         status: "idle" as GifStatus,
         progress: null as ({ done: number, total: number } | null),
         errorMessage: "",
@@ -163,7 +167,12 @@ export default defineComponent({
       this.gif.status = "splitting";
       this.gif.progress = { done: 0, total: this.gif.frames.length };
       try {
-        const images = await splitGifIntoCells(
+        const limitKb = Number(this.gif.limitKB);
+        const maxPieceBytes = this.gif.limitKB !== "" && globalThis.isFinite(limitKb) && limitKb > 0
+          ? Math.floor(limitKb * 1024)
+          : null;
+        this.gif.resultNote = "";
+        const { images, info } = await splitGifIntoCells(
           this.gif.frames,
           this.gif.width,
           this.gif.height,
@@ -172,7 +181,20 @@ export default defineComponent({
           (done, total) => {
             this.gif.progress = { done, total };
           },
+          { maxPieceBytes, lockResolution: this.gif.lockResolution },
         );
+        const largest = `${(info.largestBytes / 1024).toFixed(1)} KB`;
+        const detail = `${info.size}x${info.size}px / ${info.colors}色 / ${info.frameCount}コマ`;
+        if (maxPieceBytes) {
+          this.gif.resultWarn = !info.met;
+          this.gif.resultNote = info.met
+            ? `最大のピースは ${largest}(上限 ${(maxPieceBytes / 1024).toFixed(0)} KB に収まりました)。設定: ${detail}`
+            : `設定を最小まで下げても、最大のピースが ${largest} で上限に収まりませんでした。`
+              + "マスの数を増やすか、元のGIFの秒数を短くしてお試しください。";
+        } else {
+          this.gif.resultWarn = false;
+          this.gif.resultNote = `最大のピースは ${largest}。設定: ${detail}`;
+        }
         const namePrefix = this.gif.emojiName.trim()
           ? filenamify(this.gif.emojiName.trim(), { replacement: "" }).normalize()
           : undefined;
@@ -259,6 +281,25 @@ export default defineComponent({
                 </button>
               </div>
             </details>
+            <div class="gif-limit-row">
+              <label class="gif-limit-label">1つ1つの最大サイズ(KB)</label>
+              <input
+                  v-model="gif.limitKB"
+                  type="number"
+                  min="1"
+                  class="gif-limit-input"
+                  placeholder="なし">
+              <button type="button" class="gif-limit-chip" @click="gif.limitKB = '128'">Slack 128KB</button>
+              <button type="button" class="gif-limit-chip" @click="gif.limitKB = '256'">Discord 256KB</button>
+              <button type="button" class="gif-limit-chip" @click="gif.limitKB = ''">なし</button>
+            </div>
+            <label v-if="gif.limitKB !== ''" class="gif-limit-lock">
+              <input v-model="gif.lockResolution" type="checkbox">
+              解像度は下げない(色数とFPSだけで調整する)
+            </label>
+            <span v-if="gif.limitKB !== ''" class="gif-order-hint">
+              分割したすべてのピースが上限に収まるよう、色数・FPS(・解像度)を自動で下げます(全ピース同じ設定で、動きはそろいます)。
+            </span>
             <input
                 v-model="gif.emojiName"
                 type="text"
@@ -273,9 +314,12 @@ export default defineComponent({
                 💾
               </template>
               {{ gif.status === 'splitting'
-                ? `処理中... (${gif.progress ? gif.progress.done : 0}/${gif.progress ? gif.progress.total : 0}コマ)`
+                ? `処理中... (${gif.limitKB !== '' ? 'サイズ調整 ' : ''}${gif.progress ? gif.progress.done : 0}/${gif.progress ? gif.progress.total : 0}${gif.limitKB !== '' ? '回目' : 'コマ'})`
                 : "分割してダウンロード" }}
             </Button>
+            <span v-if="gif.resultNote" :class="['gif-result-note', { warn: gif.resultWarn }]">
+              {{ gif.resultNote }}
+            </span>
             <div v-if="gifPasteText" class="gif-paste-text-block">
               <span class="gif-paste-text-label">
                 Slack貼り付け用テキスト(横{{ gif.cells[0] }} x 縦{{ gif.cells[1] }})
@@ -311,6 +355,45 @@ export default defineComponent({
 .gif-status {
   font-size: var(--fontSizeMedium);
   color: var(--fg);
+}
+
+.gif-limit-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacingSmall);
+  align-items: center;
+}
+
+.gif-limit-label,
+.gif-limit-lock {
+  font-size: var(--fontSizeSmall, var(--fontSizeMedium));
+}
+
+.gif-limit-input {
+  width: 6em;
+}
+
+.gif-limit-chip {
+  padding: 2px 10px;
+  font-size: var(--fontSizeSmall, var(--fontSizeMedium));
+  color: var(--fg);
+  cursor: pointer;
+  background-color: var(--accentBg);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+}
+
+.gif-limit-chip:hover {
+  border-color: var(--primary);
+}
+
+.gif-result-note {
+  font-size: var(--fontSizeSmall, var(--fontSizeMedium));
+  color: #43a047;
+}
+
+.gif-result-note.warn {
+  color: #f9a825;
 }
 
 .gif-status-error {
