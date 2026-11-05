@@ -661,6 +661,12 @@ export default defineComponent({
         やり直す
       </Button>
     </div>
+    <div v-if="!devMode" class="cellcount-top">
+      <CellcountBlock
+          v-model="conf.cells"
+          :aspect="imageAspect"
+          @update:model-value="refreshDefaultSettings" />
+    </div>
     <Fieldset label="プリセット" class="preset-fieldset">
       <Space vertical full>
         <div class="preset-save-row">
@@ -773,11 +779,6 @@ export default defineComponent({
                 :options="TRIMMING_OPTIONS"
                 @update:model-value="refreshDefaultSettings" />
           </Fieldset>
-          <CellcountBlock
-              v-if="showDetails"
-              v-model="conf.cells"
-              :aspect="imageAspect"
-              @update:model-value="refreshDefaultSettings" />
           <Fieldset v-if="showDetails" label="トリミング (横)">
             <Slider
                 v-model="conf.trimH"
@@ -934,5 +935,9 @@ export default defineComponent({
   margin: 0;
   font-size: var(--fontSizeSmall, var(--fontSizeMedium));
   color: var(--danger);
+}
+
+.cellcount-top {
+  margin-bottom: var(--spacingLarge, 16px);
 }
 </style>
