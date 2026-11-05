@@ -1,9 +1,8 @@
 name: Build
 
+# 元のMEGAMOJIの開発用チェック(lint/E2E/Storybook)。改造版の公開は pages-deploy.yml が行う。
+# 元のコード書式ルールに合わず毎回失敗するため、pushでは自動実行せず、手動実行(Run workflow)のみにしている。
 on:
-  push:
-    branches:
-      - master
   workflow_dispatch:
 
 jobs:
