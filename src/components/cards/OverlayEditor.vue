@@ -24,6 +24,27 @@ const ROWS: Row[] = [
 ];
 
 const UPLOAD_MAX = 192;
+const CUSTOM_KEY = "megamoji_custom_parts_v1";
+const CUSTOM_LIMIT = 12;
+
+type CustomPart = { src: string, label: string };
+
+const loadCustom = (): CustomPart[] => {
+  try {
+    const raw = window.localStorage.getItem(CUSTOM_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr)
+      ? arr.filter((a) => a && typeof a.src === "string" && a.src.startsWith("data:image/")).slice(0, CUSTOM_LIMIT)
+      : [];
+  } catch (_) {
+    return [];
+  }
+};
+const saveCustom = (list: CustomPart[]): void => {
+  try {
+    window.localStorage.setItem(CUSTOM_KEY, JSON.stringify(list));
+  } catch (_) { /* 容量不足などは無視(今回のセッションでは使える) */ }
+};
 
 export default defineComponent({
   components: {
@@ -55,6 +76,7 @@ export default defineComponent({
       dims: {} as Record<string, { w: number, h: number }>,
       drag: null as null | { id: string, dx: number, dy: number },
       uploadError: "",
+      customParts: [] as CustomPart[],
       renderToken: 0,
     };
   },
@@ -81,6 +103,7 @@ export default defineComponent({
     show(v: boolean) { if (v) this.$nextTick(() => this.drawStage()); },
   },
   mounted() {
+    this.customParts = loadCustom();
     this.drawStage();
   },
   methods: {
@@ -159,33 +182,42 @@ export default defineComponent({
     },
     async onUpload(e: Event): Promise<void> {
       const input = e.target as HTMLInputElement;
-      const file = input.files && input.files[0];
+      const files = Array.from(input.files || []);
       input.value = "";
       this.uploadError = "";
-      if (!file) return;
-      try {
-        const url = await new Promise<string>((resolve, reject) => {
-          const fr = new FileReader();
-          fr.onload = () => resolve(String(fr.result));
-          fr.onerror = () => reject(new Error("画像を読み込めませんでした"));
-          fr.readAsDataURL(file);
-        });
-        // 履歴(localStorage)の容量を食わないよう小さく縮小して保存する
-        const img = await new Promise<HTMLImageElement>((resolve, reject) => {
-          const im = new Image();
-          im.onload = () => resolve(im);
-          im.onerror = () => reject(new Error("画像を読み込めませんでした"));
-          im.src = url;
-        });
-        const k = Math.min(1, UPLOAD_MAX / Math.max(img.naturalWidth, img.naturalHeight));
-        const c = document.createElement("canvas");
-        c.width = Math.max(1, Math.round(img.naturalWidth * k));
-        c.height = Math.max(1, Math.round(img.naturalHeight * k));
-        c.getContext("2d")!.drawImage(img, 0, 0, c.width, c.height);
-        await this.addPart(c.toDataURL("image/png"), file.name.replace(/\.[^.]+$/, "") || "画像");
-      } catch (err) {
-        this.uploadError = (err as Error).message;
+      for (const file of files) {
+        try {
+          const url = await new Promise<string>((resolve, reject) => {
+            const fr = new FileReader();
+            fr.onload = () => resolve(String(fr.result));
+            fr.onerror = () => reject(new Error("画像を読み込めませんでした"));
+            fr.readAsDataURL(file);
+          });
+          // 履歴(localStorage)の容量を食わないよう小さく縮小して保存する
+          const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+            const im = new Image();
+            im.onload = () => resolve(im);
+            im.onerror = () => reject(new Error(`「${file.name}」は画像として読み込めませんでした`));
+            im.src = url;
+          });
+          const k = Math.min(1, UPLOAD_MAX / Math.max(img.naturalWidth, img.naturalHeight));
+          const c = document.createElement("canvas");
+          c.width = Math.max(1, Math.round(img.naturalWidth * k));
+          c.height = Math.max(1, Math.round(img.naturalHeight * k));
+          c.getContext("2d")!.drawImage(img, 0, 0, c.width, c.height);
+          const src = c.toDataURL("image/png");
+          const label = file.name.replace(/\.[^.]+$/, "") || "画像";
+          this.customParts = [{ src, label }, ...this.customParts.filter((p) => p.src !== src)].slice(0, CUSTOM_LIMIT);
+          saveCustom(this.customParts);
+          await this.addPart(src, label);
+        } catch (err) {
+          this.uploadError = (err as Error).message;
+        }
       }
+    },
+    removeCustom(src: string): void {
+      this.customParts = this.customParts.filter((p) => p.src !== src);
+      saveCustom(this.customParts);
     },
     /* ---- stage ---- */
     async ensureDims(): Promise<void> {
@@ -341,10 +373,21 @@ export default defineComponent({
                 <img :src="p" class="ov-part-img">
               </button>
             </div>
-            <label v-if="!embedded" class="ov-upload">
-              自分の画像を追加:
-              <input type="file" accept="image/*" @change="onUpload">
-            </label>
+            <div class="ov-custom">
+              <div class="ov-custom-title">自分の画像をパーツにする</div>
+              <label class="ov-upload">
+                <input type="file" accept="image/*" multiple @change="onUpload">
+              </label>
+              <div v-if="customParts.length" class="ov-parts">
+                <span v-for="c in customParts" :key="c.src" class="ov-custom-item">
+                  <button type="button" class="ov-part" :title="c.label + ' を追加'" @click="addPart(c.src, c.label)">
+                    <img :src="c.src" class="ov-part-img">
+                  </button>
+                  <button type="button" class="ov-custom-x" title="この画像を一覧から消す" @click="removeCustom(c.src)">×</button>
+                </span>
+              </div>
+              <p class="ov-note">PNG(背景透明)がおすすめです。追加した画像は一覧に残り、次回も使えます(ブラウザ内に保存)。</p>
+            </div>
             <p v-if="uploadError" class="ov-error">{{ uploadError }}</p>
           </Space>
         </Fieldset>
@@ -452,4 +495,11 @@ export default defineComponent({
 .ov-flip { font-size: .85em; display: flex; align-items: center; gap: 4px; }
 .ov-clear { align-self: flex-start; }
 .ov-upload { font-size: .85em; }
+.ov-custom { display: flex; flex-direction: column; gap: 6px; }
+.ov-custom-title { font-size: .85em; font-weight: bold; }
+.ov-custom-item { position: relative; display: inline-block; }
+.ov-custom-x {
+  position: absolute; top: -6px; right: -6px; width: 16px; height: 16px; line-height: 14px; padding: 0;
+  font-size: 11px; border-radius: 50%; border: 1px solid #888; background: #fff; color: #222; cursor: pointer;
+}
 </style>
