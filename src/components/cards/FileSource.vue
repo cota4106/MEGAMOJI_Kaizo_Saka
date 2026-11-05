@@ -50,6 +50,14 @@ export default defineComponent({
         limitKB: "" as string, // 分割後の1つ1つの最大サイズ(KB)。空欄なら制限なし
         lockResolution: false,
         resultNote: "" as string,
+        sourceUrl: null as (string | null), // 元GIFのプレビュー用URL
+        result: null as null | {
+          images: Blob[][],
+          urls: string[][],
+          cells: [number, number],
+          namePrefix: string | undefined,
+          baseName: string,
+        },
         resultWarn: false,
         status: "idle" as GifStatus,
         progress: null as ({ done: number, total: number } | null),
@@ -71,6 +79,19 @@ export default defineComponent({
         return [];
       }
       return suggestCellGrids(this.gif.width / this.gif.height);
+    },
+    gifGridStyle(): Record<string, string> {
+      const [h, v] = this.gif.cells;
+      const line = "rgba(255, 64, 64, 0.9)";
+      return {
+        backgroundImage: `linear-gradient(to right, ${line} 1px, transparent 1px), `
+          + `linear-gradient(to bottom, ${line} 1px, transparent 1px)`,
+        backgroundSize: `${100 / Math.max(1, h)}% 100%, 100% ${100 / Math.max(1, v)}%`,
+      };
+    },
+    resultIsStale(): boolean {
+      if (!this.gif.result) return false;
+      return this.gif.result.cells[0] !== this.gif.cells[0] || this.gif.result.cells[1] !== this.gif.cells[1];
     },
     gifDistortionPercent(): number | null {
       const [h, v] = this.gif.cells;
@@ -99,7 +120,18 @@ export default defineComponent({
       return lines.join("\n");
     },
   },
+  beforeUnmount() {
+    this.clearGifResult();
+    if (this.gif.sourceUrl) URL.revokeObjectURL(this.gif.sourceUrl);
+  },
   methods: {
+    clearGifResult(): void {
+      if (this.gif.result) {
+        this.gif.result.urls.forEach((row) => row.forEach((u) => URL.revokeObjectURL(u)));
+        this.gif.result = null;
+      }
+      this.gif.resultNote = "";
+    },
     applyGifCellSuggestion(s: CellSuggestion): void {
       this.gif.cells = [s.h, s.v];
     },
@@ -146,6 +178,9 @@ export default defineComponent({
           this.gif.errorMessage = "アニメーションしないGIF(コマが1枚だけ)のようです。通常のファイルアップロードをお使いください。";
           return;
         }
+        if (this.gif.sourceUrl) URL.revokeObjectURL(this.gif.sourceUrl);
+        this.gif.sourceUrl = URL.createObjectURL(file);
+        this.clearGifResult();
         this.gif.fileName = file.name;
         this.gif.frames = decoded.frames;
         this.gif.width = decoded.width;
@@ -155,6 +190,12 @@ export default defineComponent({
         this.gif.status = "error";
         this.gif.errorMessage = "GIFの読み込みに失敗しました。ファイルが壊れていないか確認してください。";
       }
+    },
+    async onDownloadSplit(): Promise<void> {
+      const r = this.gif.result;
+      if (!r) return;
+      const download = await prepareDownloadFile(r.images, r.namePrefix);
+      saveAs(download, `${r.baseName}-split.${extension(download)}`);
     },
     async onSplitGifDownload(): Promise<void> {
       if (this.gif.frames.length === 0) {
@@ -198,12 +239,22 @@ export default defineComponent({
         const namePrefix = this.gif.emojiName.trim()
           ? filenamify(this.gif.emojiName.trim(), { replacement: "" }).normalize()
           : undefined;
-        const download = await prepareDownloadFile(images, namePrefix);
         const baseName = namePrefix || filenamify(
           (this.gif.fileName ?? "gif").replace(/\.gif$/i, ""),
           { replacement: "" },
         ).normalize() || "megamoji-gif";
-        saveAs(download, `${baseName}-split.${extension(download)}`);
+        const prevNote = this.gif.resultNote;
+        const prevWarn = this.gif.resultWarn;
+        this.clearGifResult();
+        this.gif.resultNote = prevNote;
+        this.gif.resultWarn = prevWarn;
+        this.gif.result = {
+          images,
+          urls: images.map((row) => row.map((blob) => URL.createObjectURL(blob))),
+          cells: [hCells, vCells],
+          namePrefix,
+          baseName,
+        };
         this.gif.status = "idle";
         this.gif.progress = null;
       } catch (err) {
@@ -227,7 +278,12 @@ export default defineComponent({
       <Fieldset label="前処理">
         <Select v-model="conf.filter" name="前処理" nullable :options="FILTER_OPTIONS" />
       </Fieldset>
-      <Fieldset label="GIFを分割(動きそのまま・エフェクトなし)">
+    </Space>
+  </Card>
+  <Card v-if="show">
+    <details class="gif-menu">
+      <summary class="gif-summary">GIFを分割(動きそのまま・エフェクトなし)</summary>
+      <div class="gif-menu-body">
         <Space vertical full>
           <p class="gif-hint">
             アップロードしたGIFの動きをそのまま保ったまま、複数マスに分割してダウンロードします
@@ -250,6 +306,13 @@ export default defineComponent({
           </span>
           <span v-if="gif.status === 'error'" class="gif-status gif-status-error">
             {{ gif.errorMessage }}
+          </span>
+          <div v-if="gif.sourceUrl && gif.frames.length > 0" class="gif-source-preview">
+            <img :src="gif.sourceUrl" class="gif-source-img">
+            <div class="gif-grid-overlay" :style="gifGridStyle"></div>
+          </div>
+          <span v-if="gif.sourceUrl && gif.frames.length > 0" class="gif-order-hint">
+            ↑ 元のGIF(赤い線が分割位置)
           </span>
           <template v-if="gif.frames.length > 0">
             <div class="gif-cells-row">
@@ -307,19 +370,42 @@ export default defineComponent({
                 placeholder="絵文字名(例: Claude)。ファイル名が 名前_行_列 になります">
             <Button
                 type="text"
-                name="分割してダウンロード"
+                name="分割する"
                 :disabled="gif.status === 'splitting'"
                 @click="onSplitGifDownload">
               <template #icon>
-                💾
+                ✂️
               </template>
               {{ gif.status === 'splitting'
                 ? `処理中... (${gif.limitKB !== '' ? 'サイズ調整 ' : ''}${gif.progress ? gif.progress.done : 0}/${gif.progress ? gif.progress.total : 0}${gif.limitKB !== '' ? '回目' : 'コマ'})`
-                : "分割してダウンロード" }}
+                : "分割する(プレビュー)" }}
             </Button>
             <span v-if="gif.resultNote" :class="['gif-result-note', { warn: gif.resultWarn }]">
               {{ gif.resultNote }}
             </span>
+            <div v-if="gif.result" class="gif-result-block">
+              <span class="gif-order-hint">
+                分割結果のプレビュー(Slackに並べたときの見え方)
+                {{ resultIsStale ? ' ※マス数を変えたので、もう一度「分割する」を押してください' : '' }}
+              </span>
+              <div
+                  class="gif-result-grid"
+                  :style="{ gridTemplateColumns: `repeat(${gif.result.cells[0]}, 1fr)` }">
+                <template v-for="(row, y) in gif.result.urls" :key="y">
+                  <img
+                      v-for="(url, x) in row"
+                      :key="`${y}-${x}`"
+                      :src="url"
+                      class="gif-result-cell">
+                </template>
+              </div>
+              <Button type="text" name="ダウンロード" @click="onDownloadSplit">
+                <template #icon>
+                  💾
+                </template>
+                ダウンロード
+              </Button>
+            </div>
             <div v-if="gifPasteText" class="gif-paste-text-block">
               <span class="gif-paste-text-label">
                 Slack貼り付け用テキスト(横{{ gif.cells[0] }} x 縦{{ gif.cells[1] }})
@@ -338,12 +424,65 @@ export default defineComponent({
             </div>
           </template>
         </Space>
-      </Fieldset>
-    </Space>
+      </div>
+    </details>
   </Card>
 </template>
 
 <style scoped>
+.gif-summary {
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.gif-menu-body {
+  margin-top: var(--spacingLarge, 12px);
+}
+
+.gif-source-preview {
+  position: relative;
+  display: inline-block;
+  max-width: 360px;
+  line-height: 0;
+}
+
+.gif-source-img {
+  display: block;
+  max-width: 100%;
+  max-height: 260px;
+}
+
+.gif-grid-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  outline: 1px solid rgba(255, 64, 64, 0.9);
+  outline-offset: -1px;
+}
+
+.gif-result-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacingSmall);
+  align-items: flex-start;
+}
+
+.gif-result-grid {
+  display: grid;
+  gap: 0;
+  width: 100%;
+  max-width: 360px;
+  background-color: #fff;
+  border: 1px solid var(--border);
+  line-height: 0;
+}
+
+.gif-result-cell {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+}
+
 .gif-hint {
   margin: 0;
   font-size: var(--fontSizeMedium);
