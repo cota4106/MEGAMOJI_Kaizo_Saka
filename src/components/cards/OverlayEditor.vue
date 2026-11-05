@@ -394,7 +394,7 @@ export default defineComponent({
 .ov-note { font-size: .85em; opacity: .75; margin: .4em 0; }
 .ov-error { color: #c62828; font-size: .85em; }
 .ov-parts { display: flex; flex-wrap: wrap; gap: 6px; max-height: 180px; overflow: auto; }
-.ov-part { border: 1px solid #ccc; background: #fff; border-radius: 6px; padding: 2px; cursor: pointer; }
+.ov-part { border: 1px solid #ccc; background: #fff; color: #222; border-radius: 6px; padding: 2px; cursor: pointer; }
 .ov-part:hover { border-color: #1a73e8; }
 .ov-part-img { width: 36px; height: 36px; display: block; }
 .ov-stage {
@@ -409,13 +409,13 @@ export default defineComponent({
 .ov-item.sel { border-color: #1a73e8; background: rgba(26, 115, 232, .08); }
 .ov-item-img { width: 24px; height: 24px; object-fit: contain; }
 .ov-item-label { flex: 1; font-size: .85em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ov-mini { font-size: .8em; padding: 2px 8px; border: 1px solid #bbb; background: #fff; border-radius: 5px; cursor: pointer; }
+.ov-mini { font-size: .8em; padding: 2px 8px; border: 1px solid #bbb; background: #fff; color: #222; border-radius: 5px; cursor: pointer; white-space: nowrap; }
 .ov-mini:hover { border-color: #1a73e8; }
 .ov-controls { display: flex; flex-direction: column; gap: 6px; }
 .ov-row { display: flex; align-items: center; gap: 8px; }
 .ov-row-label { width: 4.5em; font-size: .85em; flex: none; }
 .ov-row-slider { flex: 1; min-width: 0; }
-.ov-row-number { width: 4.5em; flex: none; }
+.ov-row-number { width: 4.5em; flex: none; background: #fff; color: #222; border: 1px solid #bbb; border-radius: 5px; padding: 2px 4px; }
 .ov-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .ov-flip { font-size: .85em; display: flex; align-items: center; gap: 4px; }
 .ov-clear { align-self: flex-start; }
