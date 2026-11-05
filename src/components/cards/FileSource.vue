@@ -6,7 +6,7 @@ import { imgToCanvas } from "../../utils/canvas";
 import { decodeGif, DecodedGifFrame } from "../../utils/gifDecode";
 import { splitGifIntoCells } from "../../utils/gifSplit";
 import { loadFileAsArrayBuffer, prepareDownloadFile, extension } from "../../utils/file";
-import { suggestCellGrids, CellSuggestion } from "../../utils/cellSuggestion";
+import { suggestCellGrids, cellDistortion, CellSuggestion } from "../../utils/cellSuggestion";
 import Card from "../global/Card.vue";
 import FileSelect from "../inputs/FileSelect.vue";
 import Select from "../inputs/Select.vue";
@@ -67,6 +67,13 @@ export default defineComponent({
         return [];
       }
       return suggestCellGrids(this.gif.width / this.gif.height);
+    },
+    gifDistortionPercent(): number | null {
+      const [h, v] = this.gif.cells;
+      if (!this.gif.width || !this.gif.height || !h || !v || h * v <= 1) {
+        return null;
+      }
+      return Math.round(cellDistortion(this.gif.width / this.gif.height, h, v) * 100);
     },
     gifPasteText(): string {
       if (this.gif.frames.length === 0 || !this.gif.emojiName.trim()) {
@@ -229,6 +236,14 @@ export default defineComponent({
               <NumberInput v-model="gif.cells[1]" :min="1" style="width: 80px;" />
             </div>
             <span class="gif-order-hint">(横 x 縦)</span>
+            <span v-if="gif.cells[0] * gif.cells[1] > 1" class="gif-order-hint">
+              分割したマスはすべて正方形になります(元のGIFの比率と合わない分割数だと、その分引き伸ばされます)。
+            </span>
+            <span
+                v-if="gifDistortionPercent !== null"
+                :class="['gif-distortion', { warn: gifDistortionPercent > 15 }]">
+              今の分割の引き伸ばし: 約{{ gifDistortionPercent }}%{{ gifDistortionPercent > 15 ? '(おすすめの分割数だと小さくなります)' : '' }}
+            </span>
             <details v-if="gifCellSuggestions.length > 0" class="gif-suggestions-details">
               <summary class="gif-suggestions-summary">歪みが出にくいおすすめを見る</summary>
               <div class="gif-suggestions">
@@ -238,6 +253,7 @@ export default defineComponent({
                     type="button"
                     class="gif-suggestion-chip"
                     :class="{ active: s.h === gif.cells[0] && s.v === gif.cells[1] }"
+                    :title="`引き伸ばし 約${Math.round(s.distortion * 100)}%`"
                     @click="applyGifCellSuggestion(s)">
                   {{ s.h }}x{{ s.v }}
                 </button>
@@ -307,7 +323,19 @@ export default defineComponent({
   align-items: center;
 }
 
+.gif-distortion {
+  font-size: var(--fontSizeSmall, var(--fontSizeMedium));
+  opacity: 0.8;
+}
+
+.gif-distortion.warn {
+  color: #f9a825;
+  opacity: 1;
+}
+
 .gif-suggestions {
+  max-height: 9em;
+  overflow-y: auto;
   display: flex;
   flex-wrap: wrap;
   gap: var(--spacingSmall);

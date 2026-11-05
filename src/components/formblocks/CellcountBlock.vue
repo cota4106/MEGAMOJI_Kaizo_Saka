@@ -3,7 +3,7 @@ import { defineComponent, PropType } from "vue";
 import Fieldset from "../inputs/Fieldset.vue";
 import Number from "../inputs/Number.vue";
 import Space from "../global/Space.vue";
-import { suggestCellGrids, CellSuggestion } from "../../utils/cellSuggestion";
+import { suggestCellGrids, cellDistortion, CellSuggestion } from "../../utils/cellSuggestion";
 
 export default defineComponent({
   components: {
@@ -23,6 +23,16 @@ export default defineComponent({
         return [];
       }
       return suggestCellGrids(this.aspect);
+    },
+    currentDistortionPercent(): number | null {
+      if (!this.aspect || !globalThis.Number.isFinite(this.aspect) || this.aspect <= 0) {
+        return null;
+      }
+      const [h, v] = this.modelValue;
+      if (!h || !v || h * v <= 1) {
+        return null;
+      }
+      return Math.round(cellDistortion(this.aspect, h, v) * 100);
     },
     isCurrentSuggested(): boolean {
       return this.suggestions.some(
@@ -55,6 +65,14 @@ export default defineComponent({
             @update:model-value="$emit('update:modelValue', [modelValue[0], $event])" />
       </Space>
       <span class="order-hint">(横 x 縦)</span>
+      <span v-if="modelValue[0] * modelValue[1] > 1" class="order-hint">
+        分割したマスはすべて正方形になります(元画像の比率と合わない分割数だと、その分引き伸ばされます)。
+      </span>
+      <span
+          v-if="currentDistortionPercent !== null"
+          :class="['distortion', { warn: currentDistortionPercent > 15 }]">
+        今の分割の引き伸ばし: 約{{ currentDistortionPercent }}%{{ currentDistortionPercent > 15 ? '(おすすめの分割数だと小さくなります)' : '' }}
+      </span>
       <details v-if="suggestions.length > 0" class="suggestions-details">
         <summary class="suggestions-summary">
           歪みが出にくいおすすめを見る{{ isCurrentSuggested ? "(適用中)" : "" }}
@@ -66,6 +84,7 @@ export default defineComponent({
               type="button"
               class="suggestion-chip"
               :class="{ active: s.h === modelValue[0] && s.v === modelValue[1] }"
+              :title="`引き伸ばし 約${Math.round(s.distortion * 100)}%`"
               @click="applySuggestion(s)">
             {{ s.h }}x{{ s.v }}
           </button>
@@ -93,7 +112,19 @@ export default defineComponent({
   user-select: none;
 }
 
+.distortion {
+  font-size: var(--fontSizeSmall, var(--fontSizeMedium));
+  opacity: 0.8;
+}
+
+.distortion.warn {
+  color: #f9a825;
+  opacity: 1;
+}
+
 .suggestions {
+  max-height: 9em;
+  overflow-y: auto;
   display: flex;
   flex-wrap: wrap;
   gap: var(--spacingSmall);

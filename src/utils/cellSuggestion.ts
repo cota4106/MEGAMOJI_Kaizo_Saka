@@ -6,18 +6,18 @@ export type CellSuggestion = {
   distortion: number;
 };
 
-const MAX_AXIS = 6; // 片方向あたりの最大分割数(これ以上は選択肢に出さない)
-const MAX_CELLS = 20; // 合計マス数の上限(増えすぎると不便なため)
+const MAX_AXIS = 10; // 片方向あたりの最大分割数(これ以上は選択肢に出さない)
+const MAX_CELLS = 100; // 合計マス数の上限(10x10まで)
 // これ以下の歪みなら「見た目に違和感が出にくい」とみなす目安値
 // (1マスの縦横比が正方形に対して±15%以内)
 const ACCEPTABLE_DISTORTION = 0.15;
-const SUGGESTION_COUNT = 3;
+const SUGGESTION_COUNT = 60; // 表示する候補数の上限(小さい分割数から順に並べる)
 
 /**
  * 分割後の1マスがどれくらい正方形からずれるかを計算する。
  * 0に近いほど歪みが少ない(Slack/Discordの正方形アイコン枠に収めたときに違和感が出にくい)。
  */
-function cellDistortion(aspect: number, h: number, v: number): number {
+export function cellDistortion(aspect: number, h: number, v: number): number {
   const cellAspect = (aspect * v) / h; // (width/h) / (height/v)
   return Math.max(cellAspect, 1 / cellAspect) - 1;
 }

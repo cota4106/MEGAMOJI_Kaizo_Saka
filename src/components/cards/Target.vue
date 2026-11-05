@@ -250,6 +250,11 @@ export default defineComponent({
     };
   },
   computed: {
+    imageAspect(): number | null {
+      return this.baseImage && this.baseImage.height > 0
+        ? this.baseImage.width / this.baseImage.height
+        : null;
+    },
     naturalAspect(): number {
       return (this.conf.trimH[1] - this.conf.trimH[0]) / (this.conf.trimV[1] - this.conf.trimV[0]);
     },
@@ -592,7 +597,10 @@ export default defineComponent({
         const framecount = Math.floor(this.conf.duration * framerate);
 
         const maxSize = this.emojiSize || (animated ? ANIMATED_EMOJI_SIZE : EMOJI_SIZE);
-        const aspectCoef = Math.sqrt(this.conf.targetAspect);
+        // 分割するときは、元画像の比率に関係なく各マスを必ず正方形にする
+        // (Slack/Discordは絵文字を正方形のマスに表示するため、長方形だと横に隙間ができる)
+        const splitting = this.conf.cells[0] * this.conf.cells[1] > 1;
+        const aspectCoef = splitting ? 1 : Math.sqrt(this.conf.targetAspect);
         const binarySizeLimit = this.emojiSize ? Infinity : BINARY_SIZE_LIMIT;
         renderAllCells(
           this.baseImage,
@@ -768,7 +776,7 @@ export default defineComponent({
           <CellcountBlock
               v-if="showDetails"
               v-model="conf.cells"
-              :aspect="conf.targetAspect"
+              :aspect="imageAspect"
               @update:model-value="refreshDefaultSettings" />
           <Fieldset v-if="showDetails" label="トリミング (横)">
             <Slider
