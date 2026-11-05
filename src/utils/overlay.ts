@@ -13,6 +13,8 @@ export type OverlayItem = {
   src: string;
   /** 表示名 */
   label: string;
+  /** パーツのカテゴリ(パーツモードで重なり順の初期位置を決めるのに使う) */
+  category?: string;
   /** 中心位置(元画像の幅/高さに対する%, 0-100) */
   x: number;
   y: number;
@@ -28,7 +30,11 @@ export type OverlayItem = {
 /** スナップショットに保存する際の型(OverlayItemと同じ。JSON化可能) */
 export type OverlaySnapshot = OverlayItem[];
 
-type Trimmed = { canvas: HTMLCanvasElement };
+type Trimmed = {
+  canvas: HTMLCanvasElement,
+  /** 元の画像の中でこのパーツが元々あった位置/大きさ(%)。パーツモードの初期値に使う */
+  natural: { x: number, y: number, size: number },
+};
 
 const cache = new Map<string, Promise<Trimmed>>();
 
@@ -76,7 +82,7 @@ export const loadTrimmed = (src: string): Promise<Trimmed> => {
       }
     }
     if (maxX < 0) {
-      return { canvas: full };
+      return { canvas: full, natural: { x: 50, y: 50, size: 100 } };
     }
     const cw = maxX - minX + 1;
     const ch = maxY - minY + 1;
@@ -84,7 +90,15 @@ export const loadTrimmed = (src: string): Promise<Trimmed> => {
     out.width = cw;
     out.height = ch;
     out.getContext("2d")!.drawImage(full, minX, minY, cw, ch, 0, 0, cw, ch);
-    return { canvas: out };
+    const longFull = Math.max(w, h);
+    return {
+      canvas: out,
+      natural: {
+        x: Math.round((minX + cw / 2) / w * 1000) / 10,
+        y: Math.round((minY + ch / 2) / h * 1000) / 10,
+        size: Math.round(Math.max(cw, ch) / longFull * 1000) / 10,
+      },
+    };
   })();
   cache.set(src, p);
   p.catch(() => cache.delete(src));
@@ -145,6 +159,7 @@ export const sanitizeOverlays = (raw: unknown): OverlayItem[] => {
       id: typeof r.id === "string" ? r.id : newOverlayId(),
       src: r.src,
       label: typeof r.label === "string" ? r.label : "パーツ",
+      category: typeof r.category === "string" ? r.category : undefined,
       x: num(r.x, 50, -50, 150),
       y: num(r.y, 50, -50, 150),
       size: num(r.size, 50, 1, 300),

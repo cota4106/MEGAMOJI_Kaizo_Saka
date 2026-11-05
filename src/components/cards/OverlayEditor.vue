@@ -34,14 +34,22 @@ export default defineComponent({
     /** 重ねる前の元画像(テキスト/画像ファイルモードで作られたcanvas) */
     source: { type: Object as PropType<HTMLCanvasElement | null>, default: null },
     modelValue: { type: Array as PropType<OverlayItem[]>, required: true },
+    /** true: Cardと折りたたみ無しで、親カードの中に直接表示する(パーツモード用) */
+    embedded: { type: Boolean, default: false },
+    /** 選べるカテゴリ(未指定なら全部) */
+    categories: { type: Array as PropType<string[]>, default: () => [] },
+    /** true: 追加時にパーツ本来の位置・大きさで置く(目や口など、位置が決まっているパーツ向け) */
+    natural: { type: Boolean, default: false },
+    /** 重なり順の既定(奥→手前)。追加時にこの順になるよう差し込む */
+    insertOrder: { type: Array as PropType<string[]>, default: () => [] },
   },
   emits: ["update:modelValue"],
-  data() {
+  data(props) {
     return {
       parts,
       empty,
       rows: ROWS,
-      tab: "others",
+      tab: (props.categories && props.categories[0]) || "others",
       open: false,
       selectedId: null as string | null,
       dims: {} as Record<string, { w: number, h: number }>,
@@ -51,6 +59,11 @@ export default defineComponent({
     };
   },
   computed: {
+    visibleCategories(): { value: string, label: string }[] {
+      return parts.categories.filter((c) => (
+        this.categories.length === 0 || this.categories.includes(c.value)
+      ));
+    },
     categoryLabels(): Record<string, string> {
       const m: Record<string, string> = {};
       parts.categories.forEach((c) => { m[c.value] = c.label; });
@@ -74,19 +87,29 @@ export default defineComponent({
     update(items: OverlayItem[]): void {
       this.$emit("update:modelValue", items);
     },
-    async addPart(src: string, label: string): Promise<void> {
+    async addPart(src: string, label: string, category?: string): Promise<void> {
       if (src === empty) return;
+      let pos = { x: 50, y: 50, size: 50 };
       try {
         const t = await loadTrimmed(src);
         this.dims[src] = { w: t.canvas.width, h: t.canvas.height };
+        if (this.natural && category) pos = t.natural;
       } catch (e) {
         this.uploadError = (e as Error).message;
         return;
       }
       const item: OverlayItem = {
-        id: newOverlayId(), src, label, x: 50, y: 50, size: 50, rotation: 0, flipX: false, opacity: 100,
+        id: newOverlayId(), src, label, category, ...pos, rotation: 0, flipX: false, opacity: 100,
       };
-      this.update([...this.modelValue, item]);
+      const list = [...this.modelValue];
+      const rank = (c?: string): number => (c ? this.insertOrder.indexOf(c) : -1);
+      let at = list.length;
+      if (rank(category) >= 0) {
+        // 同じ/より手前のカテゴリの後ろ、より手前に描くカテゴリの前に入れる
+        while (at > 0 && rank(list[at - 1].category) > rank(category)) at--;
+      }
+      list.splice(at, 0, item);
+      this.update(list);
       this.selectedId = item.id;
       this.open = true;
     },
@@ -126,8 +149,13 @@ export default defineComponent({
       this.update([...this.modelValue, copy]);
       this.selectedId = copy.id;
     },
-    reset(id: string): void {
-      this.patch(id, { x: 50, y: 50, size: 50, rotation: 0, flipX: false, opacity: 100 });
+    async reset(id: string): Promise<void> {
+      const o = this.modelValue.find((v) => v.id === id);
+      let pos = { x: 50, y: 50, size: 50 };
+      if (o && this.natural && o.category) {
+        try { pos = (await loadTrimmed(o.src)).natural; } catch (_) { /* 既定値のまま */ }
+      }
+      this.patch(id, { ...pos, rotation: 0, flipX: false, opacity: 100 });
     },
     async onUpload(e: Event): Promise<void> {
       const input = e.target as HTMLInputElement;
@@ -276,21 +304,25 @@ export default defineComponent({
 </script>
 
 <template>
-  <Card v-if="show">
-    <details class="ov" :open="open" @toggle="open = ($event.target as HTMLDetailsElement).open">
-      <summary class="ov-summary">
+  <component :is="embedded ? 'div' : 'Card'" v-if="show">
+    <component
+        :is="embedded ? 'div' : 'details'"
+        class="ov"
+        :open="embedded ? undefined : open"
+        @toggle="!embedded && (open = ($event.target as HTMLDetailsElement).open)">
+      <summary v-if="!embedded" class="ov-summary">
         パーツを重ねる(手・飾りなど)<span v-if="modelValue.length" class="ov-count">{{ modelValue.length }}個</span>
       </summary>
       <Space vertical large full>
-        <p class="ov-note">
+        <p v-if="!embedded" class="ov-note">
           ※重ねたパーツは元画像と一体になるので、エフェクトもそのまま全体にかかります。
         </p>
 
-        <Fieldset label="パーツを選ぶ(クリックで追加)">
+        <Fieldset :label="embedded ? 'パーツを追加(クリックで追加・何個でも置けます)' : 'パーツを選ぶ(クリックで追加)'">
           <Space vertical large>
             <TabGroup>
               <TabButton
-                  v-for="category in parts.categories"
+                  v-for="category in visibleCategories"
                   :key="category.value"
                   v-model="tab"
                   name="重ねパーツのカテゴリ"
@@ -305,11 +337,11 @@ export default defineComponent({
                   type="button"
                   class="ov-part"
                   :title="'追加'"
-                  @click="addPart(p, categoryLabels[tab] || 'パーツ')">
+                  @click="addPart(p, categoryLabels[tab] || 'パーツ', tab)">
                 <img :src="p" class="ov-part-img">
               </button>
             </div>
-            <label class="ov-upload">
+            <label v-if="!embedded" class="ov-upload">
               自分の画像を追加:
               <input type="file" accept="image/*" @change="onUpload">
             </label>
@@ -384,8 +416,8 @@ export default defineComponent({
           </Space>
         </Fieldset>
       </Space>
-    </details>
-  </Card>
+    </component>
+  </component>
 </template>
 
 <style scoped>

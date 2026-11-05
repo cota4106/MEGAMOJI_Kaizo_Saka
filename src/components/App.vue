@@ -176,17 +176,19 @@ export default defineComponent({
         this.ui.showTargetPanel = false;
       }
     },
-    getFullSnapshot(): { mode: string, target: unknown, text: unknown, overlays: OverlayItem[] } {
+    getFullSnapshot(): { mode: string, target: unknown, text: unknown, parts: unknown, overlays: OverlayItem[] } {
       const target = this.$refs.targetRef as { snapshotConf?: () => unknown } | undefined;
       const textSource = this.$refs.textSourceRef as { getSnapshot?: () => unknown } | undefined;
+      const fukumoji = this.$refs.fukumojiRef as { getSnapshot?: () => unknown } | undefined;
       return {
         mode: this.ui.mode,
+        parts: (this.ui.mode === "parts" && fukumoji?.getSnapshot) ? fukumoji.getSnapshot() : null,
         target: target?.snapshotConf ? target.snapshotConf() : null,
         text: (this.ui.mode === "text" && textSource?.getSnapshot) ? textSource.getSnapshot() : null,
         overlays: this.ui.mode === "parts" ? [] : this.overlays.map((o) => ({ ...o })),
       };
     },
-    applyFullSnapshot(snapshot: { mode?: string, target?: unknown, text?: unknown, overlays?: unknown }): void {
+    applyFullSnapshot(snapshot: { mode?: string, target?: unknown, text?: unknown, parts?: unknown, overlays?: unknown }): void {
       if (snapshot.mode) {
         this.ui.mode = snapshot.mode;
       }
@@ -202,6 +204,12 @@ export default defineComponent({
         const target = this.$refs.targetRef as { applyConfSnapshot?: (s: unknown) => void } | undefined;
         if (target?.applyConfSnapshot && snapshot.target) {
           target.applyConfSnapshot(snapshot.target);
+        }
+        if (snapshot.mode === "parts" && snapshot.parts) {
+          const fukumoji = this.$refs.fukumojiRef as { applySnapshot?: (s: unknown) => void } | undefined;
+          if (fukumoji?.applySnapshot) {
+            fukumoji.applySnapshot(snapshot.parts);
+          }
         }
         if (snapshot.mode === "text" && snapshot.text) {
           const textSource = this.$refs.textSourceRef as { applySnapshot?: (s: unknown) => void } | undefined;
@@ -278,6 +286,7 @@ export default defineComponent({
               :show="ui.mode == 'file' && !ui.showTargetPanel"
               @render="onRender" />
           <FukumojiSource
+              ref="fukumojiRef"
               :show="ui.mode == 'parts' && !ui.showTargetPanel"
               :emoji-size="emojiSize"
               @render="onRender" />
