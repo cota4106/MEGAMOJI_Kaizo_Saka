@@ -6,6 +6,8 @@ import Footer from "./global/Footer.vue";
 import TextSource from "./cards/TextSource.vue";
 import FileSource from "./cards/FileSource.vue";
 import FukumojiSource from "./cards/FukumojiSource.vue";
+import OverlayEditor from "./cards/OverlayEditor.vue";
+import { OverlayItem, compositeOverlays, sanitizeOverlays } from "../utils/overlay";
 import Target from "./cards/Target.vue";
 import Result from "./cards/Result.vue";
 import Gallery from "./cards/Gallery.vue";
@@ -32,6 +34,7 @@ export default defineComponent({
     TextSource,
     FileSource,
     FukumojiSource,
+    OverlayEditor,
     Target,
     Result,
     Gallery,
@@ -52,6 +55,10 @@ export default defineComponent({
   data() {
     return {
       baseImage: null as (HTMLCanvasElement | null),
+      /* パーツ重ね前の元画像と、重ねるパーツ。baseImage = 元画像 + パーツ の合成結果 */
+      sourceImage: null as (HTMLCanvasElement | null),
+      overlays: [] as OverlayItem[],
+      compositeToken: 0,
       name: null as (string | null),
       resultImages: [[]] as Blob[][],
       previewMode: false,
@@ -77,6 +84,12 @@ export default defineComponent({
       return URL.createObjectURL(firstRow[0]);
     },
   },
+  watch: {
+    overlays: {
+      handler(): void { this.applyComposite(); },
+      deep: true,
+    },
+  },
   mounted() {
     Analytics.switchMode("text");
     this.gallery = loadGalleryFromStorage();
@@ -89,6 +102,7 @@ export default defineComponent({
     },
     onSelectMode(value: string): void {
       this.ui.mode = value;
+      this.applyComposite();
       this.ui.showTargetPanel = false;
       Analytics.switchMode(value, true);
     },
@@ -97,8 +111,34 @@ export default defineComponent({
       Analytics.render();
     },
     onRender(img: HTMLCanvasElement, name: string): void {
-      this.baseImage = img;
+      this.sourceImage = img;
       this.name = name;
+      this.applyComposite();
+    },
+    /**
+     * 元画像にパーツを重ねた合成canvasを baseImage にする。
+     * エフェクト(Target)は baseImage だけを見るので、合成後の絵にエフェクトがかかる。
+     * パーツが無い/パーツモードのときは元画像をそのまま渡す(従来と同じ動作)。
+     */
+    async applyComposite(): Promise<void> {
+      const src = this.sourceImage;
+      if (!src) {
+        return;
+      }
+      const token = ++this.compositeToken;
+      const items = this.ui.mode === "parts" ? [] : this.overlays;
+      let result: HTMLCanvasElement = src;
+      if (items.length > 0) {
+        try {
+          result = await compositeOverlays(src, items);
+        } catch (_) {
+          result = src; // 合成に失敗しても元画像でエフェクトは動かす
+        }
+      }
+      if (token !== this.compositeToken) {
+        return;
+      }
+      this.baseImage = result;
     },
     scrollToResult(): void {
       const el = this.$refs.resultAnchor as HTMLElement | undefined;
@@ -107,14 +147,25 @@ export default defineComponent({
       }
     },
     getTextSnapshotForPreset(): unknown {
+      const overlays = this.overlays.map((o) => ({ ...o }));
+      if (this.ui.mode === "file") {
+        return overlays.length ? { overlays } : undefined;
+      }
       if (this.ui.mode !== "text") {
         return undefined;
       }
       const textSource = this.$refs.textSourceRef as { getSnapshot?: () => unknown } | undefined;
-      return textSource?.getSnapshot ? textSource.getSnapshot() : undefined;
+      const text = textSource?.getSnapshot ? textSource.getSnapshot() : undefined;
+      return text ? { ...(text as object), overlays } : undefined;
     },
     applyTextSnapshotFromPreset(snapshot: unknown): void {
-      if (this.ui.mode !== "text" || !snapshot) {
+      if (!snapshot) {
+        return;
+      }
+      if (Object.prototype.hasOwnProperty.call(snapshot, "overlays")) {
+        this.overlays = sanitizeOverlays((snapshot as { overlays?: unknown }).overlays);
+      }
+      if (this.ui.mode !== "text") {
         return;
       }
       const textSource = this.$refs.textSourceRef as { applySnapshot?: (s: unknown) => void } | undefined;
@@ -125,19 +176,22 @@ export default defineComponent({
         this.ui.showTargetPanel = false;
       }
     },
-    getFullSnapshot(): { mode: string, target: unknown, text: unknown } {
+    getFullSnapshot(): { mode: string, target: unknown, text: unknown, overlays: OverlayItem[] } {
       const target = this.$refs.targetRef as { snapshotConf?: () => unknown } | undefined;
       const textSource = this.$refs.textSourceRef as { getSnapshot?: () => unknown } | undefined;
       return {
         mode: this.ui.mode,
         target: target?.snapshotConf ? target.snapshotConf() : null,
         text: (this.ui.mode === "text" && textSource?.getSnapshot) ? textSource.getSnapshot() : null,
+        overlays: this.ui.mode === "parts" ? [] : this.overlays.map((o) => ({ ...o })),
       };
     },
-    applyFullSnapshot(snapshot: { mode?: string, target?: unknown, text?: unknown }): void {
+    applyFullSnapshot(snapshot: { mode?: string, target?: unknown, text?: unknown, overlays?: unknown }): void {
       if (snapshot.mode) {
         this.ui.mode = snapshot.mode;
       }
+      // パーツ重ねは元画像の再描画より先に復元する(古い履歴には無いので空にする)
+      this.overlays = sanitizeOverlays(snapshot.overlays);
       // 復元した元ネタ(テキストなど)がエフェクト設定パネルの裏に隠れて
       // 見えなくならないよう、まず元ネタ側の画面を表示する
       // (エフェクトの設定自体は裏側で正しく適用され、プレビューには反映される)
@@ -227,6 +281,10 @@ export default defineComponent({
               :show="ui.mode == 'parts' && !ui.showTargetPanel"
               :emoji-size="emojiSize"
               @render="onRender" />
+          <OverlayEditor
+              v-model="overlays"
+              :show="(ui.mode == 'text' || ui.mode == 'file') && !ui.showTargetPanel"
+              :source="sourceImage" />
           <Target
               ref="targetRef"
               v-model:emoji-size="emojiSize"
