@@ -70,7 +70,10 @@ export default defineComponent({
       parts,
       empty,
       rows: ROWS,
-      tab: (props.categories && props.categories[0]) || "others",
+      // 先頭のタブ(表示順)を最初に選ぶ。制限がなければ「飾り(others)」
+      tab: (props.categories && props.categories.length
+        ? (parts.categories.find((c) => props.categories.includes(c.value)) || parts.categories[0]).value
+        : "others"),
       open: false,
       selectedId: null as string | null,
       dims: {} as Record<string, { w: number, h: number }>,
@@ -375,8 +378,9 @@ export default defineComponent({
             </div>
             <div class="ov-custom">
               <div class="ov-custom-title">自分の画像をパーツにする</div>
-              <label class="ov-upload">
-                <input type="file" accept="image/*" multiple @change="onUpload">
+              <label class="ov-upload ov-file-btn">
+                📁 画像ファイルを選ぶ(複数可)
+                <input type="file" accept="image/*" multiple class="ov-file-input" @change="onUpload">
               </label>
               <div v-if="customParts.length" class="ov-parts">
                 <span v-for="c in customParts" :key="c.src" class="ov-custom-item">
@@ -465,7 +469,10 @@ export default defineComponent({
 
 <style scoped>
 .ov-summary { cursor: pointer; font-weight: bold; }
-.ov-count { margin-left: .6em; font-size: .85em; color: #1a73e8; }
+.ov-count {
+  margin-left: .6em; font-size: .8em; padding: 0 .6em; border-radius: 999px;
+  background: var(--primary, #f0a800); color: #1f1f1f;
+}
 .ov-note { font-size: .85em; opacity: .75; margin: .4em 0; }
 .ov-error { color: #c62828; font-size: .85em; }
 .ov-parts { display: flex; flex-wrap: wrap; gap: 6px; max-height: 180px; overflow: auto; }
@@ -495,6 +502,11 @@ export default defineComponent({
 .ov-flip { font-size: .85em; display: flex; align-items: center; gap: 4px; }
 .ov-clear { align-self: flex-start; }
 .ov-upload { font-size: .85em; }
+.ov-file-btn {
+  align-self: flex-start; padding: 4px 12px; border: 1px dashed #888; border-radius: 6px; cursor: pointer;
+}
+.ov-file-btn:hover { border-color: #1a73e8; }
+.ov-file-input { display: none; }
 .ov-custom { display: flex; flex-direction: column; gap: 6px; }
 .ov-custom-title { font-size: .85em; font-weight: bold; }
 .ov-custom-item { position: relative; display: inline-block; }

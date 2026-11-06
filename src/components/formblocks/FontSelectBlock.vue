@@ -30,6 +30,7 @@ export default defineComponent({
     stringValue: props.modelValue,
     stringIsValid: true,
     rerenderKey: 0,
+    fontLoadError: null as (string | null),
   }),
   watch: {
     modelValue: {
@@ -54,9 +55,14 @@ export default defineComponent({
   },
   methods: {
     onLoadFont(font: FontFace) {
+      this.fontLoadError = null;
       font.load().then(() => {
         document.fonts.add(font);
         this.$emit("update:modelValue", `bold 1em ${font.family}`);
+      }).catch(() => {
+        // ブラウザ側のフォント検査(セキュリティ上の理由でCID-keyed CFFなど
+        // 一部の専門的なフォント形式は読み込めないことがある)によって拒否された場合
+        this.fontLoadError = "このフォントは読み込めませんでした。特殊な作り(CID-keyed形式など、印刷向けフォントに多い形式)のフォントの可能性があります。FontForgeなどで一般的な形式に変換してから試すか、別のフォントファイルをお試しください。";
       });
     },
   },
@@ -85,6 +91,9 @@ export default defineComponent({
         <FileSelect type="font" name="ファイルを選ぶ" @load="onLoadFont">
           <Text /> ファイルを選ぶ
         </FileSelect>
+        <p v-if="fontLoadError" class="font-load-error">
+          ⚠️ {{ fontLoadError }}
+        </p>
         <Input
             v-if="showDetails"
             v-model="stringValue"
@@ -94,3 +103,11 @@ export default defineComponent({
     </Fieldset>
   </Space>
 </template>
+
+<style scoped>
+.font-load-error {
+  margin: 0;
+  font-size: var(--fontSizeSmall, var(--fontSizeMedium));
+  color: var(--danger);
+}
+</style>

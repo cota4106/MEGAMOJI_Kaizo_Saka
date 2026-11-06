@@ -602,7 +602,8 @@ export default defineComponent({
 }
 
 .gif-suggestions-summary {
-  color: var(--primary);
+  color: var(--fg);
+  text-decoration: underline dotted;
   cursor: pointer;
   user-select: none;
 }

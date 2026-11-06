@@ -33,7 +33,7 @@
   padding: 0.2em 0.6em;
   font-size: 0.32em;
   font-weight: bold;
-  color: var(--bg);
+  color: #1f1f1f;
   white-space: nowrap;
   background-color: var(--primary);
   border-radius: 999px;

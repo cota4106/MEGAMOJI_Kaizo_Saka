@@ -250,9 +250,9 @@ export default defineComponent({
         <p class="vg-note">
           動画から指定した範囲をGIFにしてダウンロードします。ここでは絵文字の効果(エフェクト)はかかりません。
         </p>
-        <label class="vg-file">
-          動画を選ぶ:
-          <input type="file" accept="video/*" @change="onFile">
+        <label class="vg-file vg-file-btn">
+          🎞️ 動画ファイルを選ぶ
+          <input type="file" accept="video/*" class="vg-file-input" @change="onFile">
         </label>
         <p v-if="status === 'loading'" class="vg-note">読み込み中...</p>
         <p v-if="status === 'error'" class="vg-error">{{ errorMessage }}</p>
@@ -360,6 +360,11 @@ export default defineComponent({
 .vg-warn { font-size: .85em; color: #f9a825; margin: 0; }
 .vg-ok { font-size: .85em; color: #43a047; margin: 0; }
 .vg-file { font-size: .9em; }
+.vg-file-btn {
+  align-self: flex-start; padding: 4px 12px; border: 1px dashed #888; border-radius: 6px; cursor: pointer;
+}
+.vg-file-btn:hover { border-color: #1a73e8; }
+.vg-file-input { display: none; }
 .vg-player { width: 100%; max-width: 360px; border-radius: 6px; background: #000; }
 .vg-grid { display: grid; grid-template-columns: auto auto 1fr; gap: 6px 10px; align-items: center; }
 .vg-label { font-size: .85em; }
