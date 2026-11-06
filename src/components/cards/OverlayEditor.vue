@@ -8,9 +8,10 @@ import Slider from "../inputs/Slider.vue";
 import Space from "../global/Space.vue";
 import Card from "../global/Card.vue";
 import * as parts from "../../constants/parts";
+import fonts from "../../constants/fonts";
 import empty from "../../parts/void.svg";
 import {
-  OverlayItem, compositeOverlays, loadTrimmed, newOverlayId,
+  OverlayItem, TextOverlayConf, DEFAULT_TEXT_CONF, compositeOverlays, loadTrimmed, loadItemImage, newOverlayId,
 } from "../../utils/overlay";
 
 type Row = { key: "x" | "y" | "size" | "rotation" | "opacity", label: string, min: number, max: number, step: number };
@@ -25,6 +26,24 @@ const ROWS: Row[] = [
 
 const UPLOAD_MAX = 192;
 const CUSTOM_KEY = "megamoji_custom_parts_v1";
+const SNAP_KEY = "megamoji_overlay_snap_v1";
+/** 吸着する距離(元画像の幅/高さに対する%) */
+const SNAP_THRESHOLD = 2.5;
+
+const ALIGN_OPTIONS = [
+  { value: "center", label: "中央揃え" },
+  { value: "left", label: "左揃え" },
+  { value: "right", label: "右揃え" },
+  { value: "stretch", label: "両端揃え" },
+];
+
+const loadSnapSetting = (): boolean => {
+  try {
+    return window.localStorage.getItem(SNAP_KEY) !== "off";
+  } catch (_) {
+    return true;
+  }
+};
 const CUSTOM_LIMIT = 12;
 
 type CustomPart = { src: string, label: string };
@@ -78,6 +97,11 @@ export default defineComponent({
       selectedId: null as string | null,
       dims: {} as Record<string, { w: number, h: number }>,
       drag: null as null | { id: string, dx: number, dy: number },
+      fontGroups: fonts,
+      alignOptions: ALIGN_OPTIONS,
+      /* 吸着(スナップ)。設定はブラウザに覚えておく */
+      snapOn: true,
+      guides: { x: null, y: null } as { x: number | null, y: number | null },
       uploadError: "",
       customParts: [] as CustomPart[],
       renderToken: 0,
@@ -102,16 +126,61 @@ export default defineComponent({
     source() { this.drawStage(); },
     modelValue: { handler() { this.drawStage(); }, deep: true },
     selectedId() { this.drawStage(); },
+    guides: { handler() { this.drawStage(); }, deep: true },
     open(v: boolean) { if (v) this.$nextTick(() => this.drawStage()); },
     show(v: boolean) { if (v) this.$nextTick(() => this.drawStage()); },
   },
   mounted() {
     this.customParts = loadCustom();
+    this.snapOn = loadSnapSetting();
     this.drawStage();
   },
   methods: {
     update(items: OverlayItem[]): void {
       this.$emit("update:modelValue", items);
+    },
+    /** 寸法キャッシュのキー(テキストは内容が変わると大きさも変わるので設定ごと) */
+    dimKey(o: OverlayItem): string {
+      return o.text ? `text:${JSON.stringify(o.text)}` : o.src;
+    },
+    setSnap(v: boolean): void {
+      this.snapOn = v;
+      if (!v) this.guides = { x: null, y: null };
+      try {
+        window.localStorage.setItem(SNAP_KEY, v ? "on" : "off");
+      } catch (_) { /* 保存できなくても動作には影響しない */ }
+    },
+    async addText(): Promise<void> {
+      const text: TextOverlayConf = { ...DEFAULT_TEXT_CONF };
+      const item: OverlayItem = {
+        id: newOverlayId(),
+        src: "text:",
+        label: "テキスト",
+        text,
+        x: 50,
+        y: 50,
+        size: 70,
+        rotation: 0,
+        flipX: false,
+        opacity: 100,
+      };
+      this.update([...this.modelValue, item]);
+      this.selectedId = item.id;
+      this.open = true;
+    },
+    patchText(id: string, p: Partial<TextOverlayConf>): void {
+      const o = this.modelValue.find((v) => v.id === id);
+      if (!o || !o.text) return;
+      const text = { ...o.text, ...p };
+      const label = text.content.trim().split("\n")[0].slice(0, 8) || "テキスト";
+      this.patch(id, { text, label });
+    },
+    onTextInput(id: string, key: keyof TextOverlayConf, e: Event): void {
+      const t = e.target as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
+      this.patchText(id, { [key]: t.value } as Partial<TextOverlayConf>);
+    },
+    onTextCheck(id: string, key: keyof TextOverlayConf, e: Event): void {
+      this.patchText(id, { [key]: (e.target as HTMLInputElement).checked } as Partial<TextOverlayConf>);
     },
     async addPart(src: string, label: string, category?: string): Promise<void> {
       if (src === empty) return;
@@ -181,6 +250,9 @@ export default defineComponent({
       if (o && this.natural && o.category) {
         try { pos = (await loadTrimmed(o.src)).natural; } catch (_) { /* 既定値のまま */ }
       }
+      if (o && o.text) {
+        pos = { x: 50, y: 50, size: 70 };
+      }
       this.patch(id, { ...pos, rotation: 0, flipX: false, opacity: 100 });
     },
     async onUpload(e: Event): Promise<void> {
@@ -225,10 +297,11 @@ export default defineComponent({
     /* ---- stage ---- */
     async ensureDims(): Promise<void> {
       for (const o of this.modelValue) {
-        if (!this.dims[o.src]) {
+        const key = this.dimKey(o);
+        if (!this.dims[key]) {
           try {
-            const t = await loadTrimmed(o.src);
-            this.dims[o.src] = { w: t.canvas.width, h: t.canvas.height };
+            const t = await loadItemImage(o);
+            if (t) this.dims[key] = { w: t.canvas.width, h: t.canvas.height };
           } catch (_) { /* ignore */ }
         }
       }
@@ -247,7 +320,7 @@ export default defineComponent({
       ctx.clearRect(0, 0, stage.width, stage.height);
       ctx.drawImage(comp, 0, 0);
       const sel = this.selected;
-      if (sel && this.dims[sel.src]) {
+      if (sel && this.dims[this.dimKey(sel)]) {
         const box = this.boxOf(sel);
         ctx.save();
         ctx.translate(this.source.width * sel.x / 100, this.source.height * sel.y / 100);
@@ -259,9 +332,84 @@ export default defineComponent({
         ctx.strokeRect(-box.w / 2, -box.h / 2, box.w, box.h);
         ctx.restore();
       }
+      // 吸着ガイド線(プレビュー上だけに描く。出力画像には入らない)
+      if (this.guides.x !== null || this.guides.y !== null) {
+        const lw = Math.max(1, Math.min(stage.width, stage.height) / 120);
+        ctx.save();
+        ctx.lineWidth = lw;
+        ctx.strokeStyle = "#e91e63";
+        ctx.setLineDash([lw * 4, lw * 3]);
+        if (this.guides.x !== null) {
+          const gx = stage.width * this.guides.x / 100;
+          ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, stage.height); ctx.stroke();
+        }
+        if (this.guides.y !== null) {
+          const gy = stage.height * this.guides.y / 100;
+          ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(stage.width, gy); ctx.stroke();
+        }
+        ctx.restore();
+      }
+    },
+    /** 回転を考慮した、パーツの外接する四角の半分の幅・高さ(元画像のpx) */
+    halfExtent(o: OverlayItem): { w: number, h: number } {
+      const b = this.boxOf(o);
+      const a = o.rotation * Math.PI / 180;
+      const c = Math.abs(Math.cos(a));
+      const s = Math.abs(Math.sin(a));
+      return { w: (b.w * c + b.h * s) / 2, h: (b.w * s + b.h * c) / 2 };
+    },
+    /**
+     * 吸着: 中央(50%)・元画像の端・他のパーツの中心/端に、近ければぴったり合わせる。
+     * 戻り値は吸着後の位置(%)と、表示するガイド線(%)。
+     */
+    snap(o: OverlayItem, x: number, y: number): { x: number, y: number, gx: number | null, gy: number | null } {
+      const W = this.source!.width;
+      const H = this.source!.height;
+      const half = this.halfExtent(o);
+      const hx = half.w / W * 100;
+      const hy = half.h / H * 100;
+      const candX: { pos: number, guide: number }[] = [
+        { pos: 50, guide: 50 },
+        { pos: hx, guide: 0 },
+        { pos: 100 - hx, guide: 100 },
+      ];
+      const candY: { pos: number, guide: number }[] = [
+        { pos: 50, guide: 50 },
+        { pos: hy, guide: 0 },
+        { pos: 100 - hy, guide: 100 },
+      ];
+      this.modelValue.forEach((other) => {
+        if (other.id === o.id) return;
+        const oh = this.halfExtent(other);
+        const ohx = oh.w / W * 100;
+        const ohy = oh.h / H * 100;
+        candX.push({ pos: other.x, guide: other.x });
+        candX.push({ pos: other.x - ohx + hx, guide: other.x - ohx }); // 左端をそろえる
+        candX.push({ pos: other.x + ohx - hx, guide: other.x + ohx }); // 右端をそろえる
+        candY.push({ pos: other.y, guide: other.y });
+        candY.push({ pos: other.y - ohy + hy, guide: other.y - ohy }); // 上端をそろえる
+        candY.push({ pos: other.y + ohy - hy, guide: other.y + ohy }); // 下端をそろえる
+      });
+      const pick = (v: number, cands: { pos: number, guide: number }[]) => {
+        let best: { pos: number, guide: number } | null = null;
+        let bestD = SNAP_THRESHOLD;
+        cands.forEach((c) => {
+          const d = Math.abs(v - c.pos);
+          if (d <= bestD) { best = c; bestD = d; }
+        });
+        return best as { pos: number, guide: number } | null;
+      };
+      const bx = pick(x, candX);
+      const by = pick(y, candY);
+      return {
+        x: bx ? bx.pos : x,
+        y: by ? by.pos : y,
+        gx: bx ? bx.guide : null,
+        gy: by ? by.guide : null,
+      };
     },
     boxOf(o: OverlayItem): { w: number, h: number } {
-      const d = this.dims[o.src];
+      const d = this.dims[this.dimKey(o)];
       const base = Math.min(this.source!.width, this.source!.height);
       const long = base * o.size / 100;
       if (!d) return { w: long, h: long };
@@ -317,8 +465,18 @@ export default defineComponent({
     onPointerMove(e: PointerEvent): void {
       if (!this.drag || !this.source) return;
       const p = this.toLocal(e);
-      const x = (p.x - this.drag.dx) / this.source.width * 100;
-      const y = (p.y - this.drag.dy) / this.source.height * 100;
+      let x = (p.x - this.drag.dx) / this.source.width * 100;
+      let y = (p.y - this.drag.dy) / this.source.height * 100;
+      const item = this.modelValue.find((o) => o.id === this.drag!.id);
+      if (this.snapOn && !e.altKey && item) {
+        // Altキーを押しながらドラッグすると、その間だけ吸着しない
+        const r = this.snap(item, x, y);
+        x = r.x;
+        y = r.y;
+        this.guides = { x: r.gx, y: r.gy };
+      } else if (this.guides.x !== null || this.guides.y !== null) {
+        this.guides = { x: null, y: null };
+      }
       this.patch(this.drag.id, {
         x: Math.round(Math.min(120, Math.max(-20, x)) * 10) / 10,
         y: Math.round(Math.min(120, Math.max(-20, y)) * 10) / 10,
@@ -326,6 +484,7 @@ export default defineComponent({
     },
     onPointerUp(): void {
       this.drag = null;
+      this.guides = { x: null, y: null };
     },
     nudge(dx: number, dy: number): void {
       if (!this.selected) return;
@@ -377,6 +536,10 @@ export default defineComponent({
               </button>
             </div>
             <div class="ov-custom">
+              <div class="ov-custom-title">テキストをパーツにする</div>
+              <button type="button" class="ov-mini ov-text-add" name="テキストパーツを追加" @click="addText">＋ テキストを追加</button>
+            </div>
+            <div class="ov-custom">
               <div class="ov-custom-title">自分の画像をパーツにする</div>
               <label class="ov-upload ov-file-btn">
                 📁 画像ファイルを選ぶ(複数可)
@@ -398,6 +561,10 @@ export default defineComponent({
 
         <Fieldset v-if="modelValue.length" label="位置を調整(ドラッグでも動かせます)">
           <Space vertical large full>
+            <label class="ov-snap">
+              <input type="checkbox" name="パーツの吸着" :checked="snapOn" @change="setSnap(($event.target as HTMLInputElement).checked)">
+              吸着(スナップ):中央・端・他のパーツにぴったり合わせる<span class="ov-snap-hint">(Altキーを押しながらで一時的に解除)</span>
+            </label>
             <canvas
                 ref="stage"
                 class="ov-stage"
@@ -412,7 +579,8 @@ export default defineComponent({
                   :key="o.id"
                   :class="['ov-item', { sel: o.id === selectedId }]"
                   @click="selectedId = o.id">
-                <img :src="o.src" class="ov-item-img">
+                <span v-if="o.text" class="ov-item-img ov-item-t">T</span>
+                <img v-else :src="o.src" class="ov-item-img">
                 <span class="ov-item-label">{{ i + 1 }}. {{ o.label }}</span>
                 <button type="button" class="ov-mini" title="手前に" @click.stop="move(o.id, 1)">↑</button>
                 <button type="button" class="ov-mini" title="奥に" @click.stop="move(o.id, -1)">↓</button>
@@ -422,6 +590,48 @@ export default defineComponent({
             </div>
 
             <div v-if="selected" class="ov-controls">
+              <div v-if="selected.text" class="ov-text-panel">
+                <textarea
+                    class="ov-text-input"
+                    name="パーツのテキスト"
+                    rows="2"
+                    placeholder="テキストを入力(改行できます)"
+                    :value="selected.text.content"
+                    @input="onTextInput(selected.id, 'content', $event)" />
+                <div class="ov-text-row">
+                  <span class="ov-row-label">フォント</span>
+                  <select class="ov-select ov-text-grow" name="パーツのフォント" :value="selected.text.font" @change="onTextInput(selected.id, 'font', $event)">
+                    <optgroup v-for="g in fontGroups" :key="g.label" :label="g.label">
+                      <option v-for="f in g.fonts" :key="f.value" :value="f.value">{{ f.label }}</option>
+                    </optgroup>
+                  </select>
+                </div>
+                <div class="ov-text-row">
+                  <span class="ov-row-label">文字色</span>
+                  <input type="color" class="ov-color" name="パーツの文字色" :value="selected.text.color" @input="onTextInput(selected.id, 'color', $event)">
+                  <span class="ov-row-label">揃え</span>
+                  <select class="ov-select ov-text-grow" name="パーツの揃え" :value="selected.text.align" @change="onTextInput(selected.id, 'align', $event)">
+                    <option v-for="a in alignOptions" :key="a.value" :value="a.value">{{ a.label }}</option>
+                  </select>
+                </div>
+                <div class="ov-text-row">
+                  <label class="ov-flip">
+                    <input type="checkbox" name="パーツの縁取り" :checked="selected.text.outlineOn" @change="onTextCheck(selected.id, 'outlineOn', $event)">
+                    縁取り
+                  </label>
+                  <input v-if="selected.text.outlineOn" type="color" class="ov-color" name="パーツの縁取り色" :value="selected.text.outlineColor" @input="onTextInput(selected.id, 'outlineColor', $event)">
+                </div>
+                <div v-if="selected.text.outlineOn" class="ov-row">
+                  <span class="ov-row-label">縁の太さ</span>
+                  <Slider class="ov-row-slider" :model-value="selected.text.outlineThickness" :min="0" :max="3" :step="0.1" block
+                          @update:model-value="patchText(selected.id, { outlineThickness: $event as number })" />
+                </div>
+                <div class="ov-row">
+                  <span class="ov-row-label">行間</span>
+                  <Slider class="ov-row-slider" :model-value="selected.text.lineSpacing" :min="-0.2" :max="0.5" :step="0.01" block
+                          @update:model-value="patchText(selected.id, { lineSpacing: $event as number })" />
+                </div>
+              </div>
               <div v-for="row in rows" :key="row.key" class="ov-row">
                 <span class="ov-row-label">{{ row.label }}</span>
                 <Slider
@@ -501,6 +711,16 @@ export default defineComponent({
 .ov-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .ov-flip { font-size: .85em; display: flex; align-items: center; gap: 4px; }
 .ov-clear { align-self: flex-start; }
+.ov-text-add { align-self: flex-start; padding: 4px 12px; }
+.ov-snap { font-size: .85em; display: flex; align-items: flex-start; gap: 6px; flex-wrap: wrap; }
+.ov-snap-hint { opacity: .65; font-size: .9em; }
+.ov-item-t { display: inline-flex; align-items: center; justify-content: center; font-weight: bold; border: 1px solid #888; border-radius: 4px; flex: none; }
+.ov-text-panel { display: flex; flex-direction: column; gap: 6px; }
+.ov-text-input { width: 100%; box-sizing: border-box; background: #fff; color: #222; border: 1px solid #bbb; border-radius: 5px; padding: 4px 6px; font: inherit; resize: vertical; }
+.ov-text-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ov-text-grow { flex: 1; min-width: 0; }
+.ov-select { background: #fff; color: #222; border: 1px solid #bbb; border-radius: 5px; padding: 3px 4px; max-width: 100%; }
+.ov-color { width: 36px; height: 28px; padding: 0; border: 1px solid #bbb; border-radius: 5px; background: #fff; flex: none; }
 .ov-upload { font-size: .85em; }
 .ov-file-btn {
   align-self: flex-start; padding: 4px 12px; border: 1px dashed #888; border-radius: 6px; cursor: pointer;

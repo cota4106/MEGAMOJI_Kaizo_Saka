@@ -7,12 +7,44 @@
  * 通常の元画像と全く同じ経路で動く。
  */
 
+import { makeTextImage } from "./textimage";
+import fonts, { fontStatusWatcher } from "../constants/fonts";
+import { OUTLINE_THICKNESS } from "../constants/emoji";
+
+/** 重ねるテキストの設定(テキストモードの主な設定に準拠) */
+export type TextOverlayConf = {
+  content: string;
+  /** フォント(constants/fonts の value。例: "normal 1em 'Mplus1Bold'") */
+  font: string;
+  color: string;
+  align: "stretch" | "center" | "left" | "right";
+  outlineOn: boolean;
+  outlineColor: string;
+  /** テキストモードと同じ単位(1.0 = 標準) */
+  outlineThickness: number;
+  /** 行間(文字分) */
+  lineSpacing: number;
+};
+
+export const DEFAULT_TEXT_CONF: TextOverlayConf = {
+  content: "テキスト",
+  font: fonts[0].fonts[0].value,
+  color: "#ffb700",
+  align: "center",
+  outlineOn: false,
+  outlineColor: "#ffffff",
+  outlineThickness: 1,
+  lineSpacing: 0.05,
+};
+
 export type OverlayItem = {
   id: string;
   /** 画像URL(パーツのsvg、またはアップロード画像のdata URL) */
   src: string;
   /** 表示名 */
   label: string;
+  /** テキストパーツのとき設定が入る(このときsrcは使わない) */
+  text?: TextOverlayConf;
   /** パーツのカテゴリ(パーツモードで重なり順の初期位置を決めるのに使う) */
   category?: string;
   /** 中心位置(元画像の幅/高さに対する%, 0-100) */
@@ -105,6 +137,67 @@ export const loadTrimmed = (src: string): Promise<Trimmed> => {
   return p;
 };
 
+const FONT_PX = 192; // 重ねテキストを描くときの基準の高さ(大きく描いて縮小して使う)
+const textCache = new Map<string, Promise<Trimmed | null>>();
+
+const waitFontLoaded = (fontValue: string): Promise<void> => new Promise((resolve) => {
+  const entry = fonts.flatMap((g) => g.fonts).find((f) => f.value === fontValue);
+  if (!entry || entry.loaded) {
+    resolve();
+    return;
+  }
+  const timer = window.setTimeout(() => {
+    fontStatusWatcher.off("load", onLoad); // eslint-disable-line @typescript-eslint/no-use-before-define
+    resolve();
+  }, 4000);
+  const onLoad = () => {
+    if (entry.loaded) {
+      window.clearTimeout(timer);
+      fontStatusWatcher.off("load", onLoad);
+      resolve();
+    }
+  };
+  fontStatusWatcher.on("load", onLoad);
+});
+
+/** テキストの設定をcanvasにする(結果はキャッシュ)。空文字ならnull */
+export const renderTextOverlay = (conf: TextOverlayConf): Promise<Trimmed | null> => {
+  if (!conf.content.trim()) return Promise.resolve(null);
+  const key = JSON.stringify(conf);
+  const hit = textCache.get(key);
+  if (hit) return hit;
+  const p = (async (): Promise<Trimmed | null> => {
+    await waitFontLoaded(conf.font);
+    const canvas = makeTextImage(
+      conf.content,
+      conf.color,
+      conf.font,
+      FONT_PX,
+      conf.align,
+      conf.lineSpacing,
+      conf.outlineOn ? [conf.outlineColor] : [],
+      conf.outlineThickness * OUTLINE_THICKNESS * (FONT_PX / 1.5),
+      0,
+      0,
+      [],
+      0.02,
+    );
+    return { canvas, natural: { x: 50, y: 50, size: 70 } };
+  })();
+  textCache.set(key, p);
+  if (textCache.size > 60) {
+    const first = textCache.keys().next().value;
+    if (first !== undefined) textCache.delete(first);
+  }
+  p.catch(() => textCache.delete(key));
+  return p;
+};
+
+/** パーツ1つ分の画像(テキストパーツならテキストを描いたcanvas)を返す。描くものがなければnull */
+export const loadItemImage = (item: OverlayItem): Promise<Trimmed | null> => (
+  item.text ? renderTextOverlay(item.text) : loadTrimmed(item.src)
+);
+
 /** 元画像canvasにパーツを重ね描きする(元canvasは変更しない) */
 export const compositeOverlays = async (
   source: HTMLCanvasElement,
@@ -121,12 +214,13 @@ export const compositeOverlays = async (
   ctx.drawImage(source, 0, 0);
   const base = Math.min(source.width, source.height);
   for (const item of items) {
-    let trimmed: Trimmed;
+    let trimmed: Trimmed | null;
     try {
-      trimmed = await loadTrimmed(item.src);
+      trimmed = await loadItemImage(item);
     } catch (_) {
       continue; // 読み込めないパーツは飛ばす(エフェクト処理は止めない)
     }
+    if (!trimmed) continue;
     const c = trimmed.canvas;
     const longSide = Math.max(c.width, c.height);
     const k = (base * item.size / 100) / longSide;
@@ -146,6 +240,29 @@ export const compositeOverlays = async (
 
 export const newOverlayId = (): string => `ov_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
 
+const COLOR_RE = /^#[0-9a-fA-F]{3,8}$/;
+const KNOWN_FONTS = fonts.flatMap((g) => g.fonts.map((f) => f.value));
+
+const sanitizeText = (raw: unknown): TextOverlayConf | undefined => {
+  if (!raw || typeof raw !== "object") return undefined;
+  const t = raw as Partial<TextOverlayConf>;
+  const d = DEFAULT_TEXT_CONF;
+  const num = (v: unknown, def: number, lo: number, hi: number): number => {
+    const n = typeof v === "number" && globalThis.isFinite(v) ? v : def;
+    return Math.min(hi, Math.max(lo, n));
+  };
+  return {
+    content: typeof t.content === "string" ? t.content.slice(0, 200) : d.content,
+    font: typeof t.font === "string" && KNOWN_FONTS.includes(t.font) ? t.font : d.font,
+    color: typeof t.color === "string" && COLOR_RE.test(t.color) ? t.color : d.color,
+    align: (["stretch", "center", "left", "right"] as const).find((a) => a === t.align) || d.align,
+    outlineOn: !!t.outlineOn,
+    outlineColor: typeof t.outlineColor === "string" && COLOR_RE.test(t.outlineColor) ? t.outlineColor : d.outlineColor,
+    outlineThickness: num(t.outlineThickness, d.outlineThickness, 0.1, 3),
+    lineSpacing: num(t.lineSpacing, d.lineSpacing, 0, 1),
+  };
+};
+
 /** JSON由来の値を安全なOverlayItem[]に整える(古い/壊れたスナップショット対策) */
 export const sanitizeOverlays = (raw: unknown): OverlayItem[] => {
   if (!Array.isArray(raw)) return [];
@@ -154,10 +271,13 @@ export const sanitizeOverlays = (raw: unknown): OverlayItem[] => {
     return Math.min(hi, Math.max(lo, n));
   };
   return raw
-    .filter((r) => r && typeof r === "object" && typeof (r as OverlayItem).src === "string")
+    .filter((r) => r && typeof r === "object" && (
+      typeof (r as OverlayItem).src === "string" || (r as OverlayItem).text
+    ))
     .map((r: any) => ({
       id: typeof r.id === "string" ? r.id : newOverlayId(),
-      src: r.src,
+      src: typeof r.src === "string" ? r.src : "text:",
+      text: sanitizeText(r.text),
       label: typeof r.label === "string" ? r.label : "パーツ",
       category: typeof r.category === "string" ? r.category : undefined,
       x: num(r.x, 50, -50, 150),
