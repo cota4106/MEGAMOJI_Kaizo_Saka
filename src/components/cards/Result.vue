@@ -29,9 +29,12 @@ export default defineComponent({
     name: { type: String, default: null },
     showTarget: { type: Boolean, required: false },
     getSettingsSnapshot: { type: Function as PropType<() => unknown>, default: null },
+    /** 画像サイズを手動で指定しているか(自動なら自動で128KB以内に縮むので、ボタンは出さない) */
+    manualSize: { type: Boolean, default: false },
   },
   emits: [
     "toggleShowTarget",
+    "fitSize",
     "saved",
   ],
   data() {
@@ -164,6 +167,13 @@ export default defineComponent({
           <span v-else-if="sizeWarning === 'both'" class="size-warning size-warning-both">
             ⚠️ Slack(128KB)・Discord(256KB)どちらの上限も超えています
           </span>
+          <Button
+              v-if="manualSize && sizeWarning !== 'ok'"
+              type="text"
+              name="サイズを自動で縮めて上限に収める"
+              @click="$emit('fitSize')">
+            サイズを自動で縮める
+          </Button>
         </div>
         <Checkbox v-model="previewMode" name="サンプル表示">
           {{ "サンプル表示" }}

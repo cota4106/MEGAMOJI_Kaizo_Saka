@@ -166,6 +166,41 @@ function decodePresetFromCode(code: string): { name: string, snapshot: ConfSnaps
   }
 }
 
+// --- 共有URL -----------------------------------------------------------
+// 共有URLは `#preset=<コード(URL用base64)>` を付けたこのページのURL。
+const PRESET_URL_KEY = "preset=";
+/** これを超えるURLはチャット等で途切れる恐れがあるので注意を出す */
+const PRESET_URL_WARN_LENGTH = 4000;
+
+/** 自分でアップロードした画像(data URL)はURLに入りきらないので外す */
+function stripLocalImages(external: unknown): { external: unknown, dropped: number } {
+  const ext = external as { overlays?: { src?: string }[] } | undefined | null;
+  if (!ext || !Array.isArray(ext.overlays)) {
+    return { external, dropped: 0 };
+  }
+  const kept = ext.overlays.filter((o) => !(typeof o.src === "string" && /^(data|blob):/.test(o.src)));
+  return { external: { ...ext, overlays: kept }, dropped: ext.overlays.length - kept.length };
+}
+
+function buildPresetUrl(preset: Preset): { url: string, dropped: number } {
+  const { external, dropped } = stripLocalImages(preset.external);
+  const code = encodePresetToCode({ ...preset, external });
+  const body = code.slice(PRESET_CODE_PREFIX.length)
+    .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  const base = `${window.location.origin}${window.location.pathname}`;
+  return { url: `${base}#${PRESET_URL_KEY}${body}`, dropped };
+}
+
+function readPresetFromHash(): { name: string, snapshot: ConfSnapshot, external?: unknown } | null {
+  const hash = window.location.hash.replace(/^#/, "");
+  if (!hash.startsWith(PRESET_URL_KEY)) {
+    return null;
+  }
+  const body = hash.slice(PRESET_URL_KEY.length).replace(/-/g, "+").replace(/_/g, "/");
+  const padded = body + "=".repeat((4 - (body.length % 4)) % 4);
+  return decodePresetFromCode(`${PRESET_CODE_PREFIX}${padded}`);
+}
+
 export default defineComponent({
   components: {
     Color,
@@ -194,6 +229,7 @@ export default defineComponent({
     applyExternalSnapshot: { type: Function as PropType<(s: unknown) => void>, default: null },
   },
   emits: [
+    "incoming-preset",
     "render",
     "update:emojiSize",
   ],
@@ -248,6 +284,9 @@ export default defineComponent({
       importCode: "",
       importError: false,
       copiedPresetId: null as (string | null),
+      copiedUrlId: null as (string | null),
+      urlNotice: "",
+      incomingPreset: null as (null | { name: string, snapshot: ConfSnapshot, external?: unknown }),
     };
   },
   computed: {
@@ -318,9 +357,12 @@ export default defineComponent({
     this.undoStack = [JSON.stringify(this.snapshotConf())];
     this.presets = loadPresetsFromStorage();
     window.addEventListener("keydown", this.onKeydown);
+    window.addEventListener("hashchange", this.checkIncomingPreset);
+    this.checkIncomingPreset();
   },
   unmounted() {
     window.removeEventListener("keydown", this.onKeydown);
+    window.removeEventListener("hashchange", this.checkIncomingPreset);
     if (this.historyTimer !== null) {
       clearTimeout(this.historyTimer);
     }
@@ -499,6 +541,65 @@ export default defineComponent({
         // eslint-disable-next-line no-alert
         window.prompt("このコードをコピーしてください:", code);
       }
+    },
+    async sharePresetUrl(preset: Preset): Promise<void> {
+      const { url, dropped } = buildPresetUrl(preset);
+      const notes: string[] = [];
+      if (dropped > 0) {
+        notes.push(`自分の画像のパーツ ${dropped}個はURLに入らないため除きました。`);
+      }
+      if (url.length > PRESET_URL_WARN_LENGTH) {
+        notes.push("URLが長いので、チャットなどで途中で切れる場合は「コード」での共有をお使いください。");
+      }
+      this.urlNotice = notes.join("");
+      try {
+        await navigator.clipboard.writeText(url);
+        this.copiedUrlId = preset.id;
+        window.setTimeout(() => {
+          if (this.copiedUrlId === preset.id) {
+            this.copiedUrlId = null;
+          }
+        }, 2000);
+      } catch (e) {
+        // eslint-disable-next-line no-alert
+        window.prompt("このURLをコピーしてください:", url);
+      }
+    },
+    /** 共有URLで開かれたときに、確認してから取り込む(勝手には変更しない) */
+    checkIncomingPreset(): void {
+      const decoded = readPresetFromHash();
+      if (decoded) {
+        this.incomingPreset = decoded;
+        // プリセット欄が見える状態にするため、設定パネルを開いてもらう
+        this.$emit("incoming-preset");
+      }
+    },
+    clearIncomingHash(): void {
+      try {
+        window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
+      } catch (e) { /* 失敗しても動作には影響しない */ }
+    },
+    acceptIncomingPreset(): void {
+      const decoded = this.incomingPreset;
+      if (!decoded) {
+        return;
+      }
+      const preset: Preset = {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        name: decoded.name,
+        snapshot: decoded.snapshot,
+        external: decoded.external,
+        savedAt: Date.now(),
+      };
+      this.presets = [preset, ...this.presets];
+      savePresetsToStorage(this.presets);
+      this.incomingPreset = null;
+      this.clearIncomingHash();
+      this.applyPreset(preset);
+    },
+    dismissIncomingPreset(): void {
+      this.incomingPreset = null;
+      this.clearIncomingHash();
     },
     importPresetFromCode(): void {
       const decoded = decodePresetFromCode(this.importCode);
@@ -694,6 +795,12 @@ export default defineComponent({
             保存
           </Button>
         </div>
+        <div v-if="incomingPreset" class="preset-incoming">
+          <span>共有されたプリセット「{{ incomingPreset.name }}」を受け取りました。</span>
+          <Button type="text" name="共有されたプリセットを追加して読み込む" @click="acceptIncomingPreset">追加して読み込む</Button>
+          <Button type="text" name="共有されたプリセットを無視" @click="dismissIncomingPreset">閉じる</Button>
+        </div>
+        <p v-if="urlNotice" class="preset-url-note">{{ urlNotice }}</p>
         <p v-if="presets.length === 0" class="preset-empty">
           保存したプリセットはまだありません。
         </p>
@@ -704,7 +811,10 @@ export default defineComponent({
               読み込む
             </Button>
             <Button type="text" name="このプリセットの共有コードをコピー" @click="sharePreset(preset)">
-              {{ copiedPresetId === preset.id ? "コピーしました！" : "共有" }}
+              {{ copiedPresetId === preset.id ? "コピーしました！" : "コード" }}
+            </Button>
+            <Button type="text" name="このプリセットの共有URLをコピー" @click="sharePresetUrl(preset)">
+              {{ copiedUrlId === preset.id ? "コピーしました！" : "URL" }}
             </Button>
             <Button type="text" danger name="このプリセットを削除" @click="deletePreset(preset)">
               削除
@@ -932,7 +1042,25 @@ export default defineComponent({
   list-style: none;
 }
 
+.preset-incoming {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacingSmall) var(--spacingMedium);
+  padding: var(--spacingSmall) var(--spacingMedium);
+  border: 1px solid var(--primary);
+  border-radius: var(--radius, 6px);
+  font-size: var(--fontSizeMedium);
+}
+
+.preset-url-note {
+  margin: 0;
+  font-size: var(--fontSizeSmall, var(--fontSizeMedium));
+  opacity: 0.8;
+}
+
 .preset-item {
+  flex-wrap: wrap;
   display: flex;
   align-items: center;
   gap: var(--spacingMedium);
@@ -944,7 +1072,8 @@ export default defineComponent({
   font-size: var(--fontSizeMedium);
   text-overflow: ellipsis;
   white-space: nowrap;
-  flex: 1 1 auto;
+  flex: 1 1 6em;
+  min-width: 0;
 }
 
 .preset-import-row {

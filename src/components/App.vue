@@ -305,6 +305,7 @@ export default defineComponent({
               :base-image="baseImage"
               :get-external-snapshot="getTextSnapshotForPreset"
               :apply-external-snapshot="applyTextSnapshotFromPreset"
+              @incoming-preset="ui.showTargetPanel = true"
               @render="onRenderTarget" />
         </GridItem>
         <GridItem>
@@ -317,6 +318,8 @@ export default defineComponent({
                   :name="name"
                   :show-target="ui.showTargetPanel"
                   :get-settings-snapshot="getFullSnapshot"
+                  :manual-size="emojiSize !== null"
+                  @fit-size="emojiSize = null"
                   @toggle-show-target="onToggleShowTarget"
                   @saved="refreshGallery" />
             </Space>
