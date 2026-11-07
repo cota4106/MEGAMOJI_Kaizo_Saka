@@ -24,6 +24,8 @@ export type TextOverlayConf = {
   outlineThickness: number;
   /** 行間(文字分) */
   lineSpacing: number;
+  /** 縦書き(省略時は横書き) */
+  vertical?: boolean;
 };
 
 export const DEFAULT_TEXT_CONF: TextOverlayConf = {
@@ -181,6 +183,7 @@ export const renderTextOverlay = (conf: TextOverlayConf): Promise<Trimmed | null
       0,
       [],
       0.02,
+      !!conf.vertical,
     );
     return { canvas, natural: { x: 50, y: 50, size: 70 } };
   })();
@@ -260,6 +263,7 @@ const sanitizeText = (raw: unknown): TextOverlayConf | undefined => {
     outlineColor: typeof t.outlineColor === "string" && COLOR_RE.test(t.outlineColor) ? t.outlineColor : d.outlineColor,
     outlineThickness: num(t.outlineThickness, d.outlineThickness, 0.1, 3),
     lineSpacing: num(t.lineSpacing, d.lineSpacing, 0, 1),
+    vertical: t.vertical === true,
   };
 };
 

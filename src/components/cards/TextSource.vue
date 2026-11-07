@@ -67,6 +67,7 @@ export default defineComponent({
         /* basic */
         content: "",
         align: "stretch",
+        vertical: false,
         color: "#ffb700",
         gradient: [] as ColorStop[],
         outlines: [] as string[],
@@ -137,6 +138,7 @@ export default defineComponent({
           this.conf.outlineY,
           this.absoluteGradient,
           Number(this.conf.paddingValue),
+          this.conf.vertical,
         );
         const name = this.conf.content.replace(/\n/g, "");
         this.$emit("render", canvas, name);
@@ -217,6 +219,9 @@ export default defineComponent({
                   <AlignRight />
                 </ToggleButton>
               </Space>
+              <Checkbox v-model="conf.vertical" name="縦書き">
+                縦書き(改行ごとに右から左へ並べます)
+              </Checkbox>
             </Space>
           </Fieldset>
           <FontColorSelectBlock

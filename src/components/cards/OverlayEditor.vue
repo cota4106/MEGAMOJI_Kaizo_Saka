@@ -616,6 +616,12 @@ export default defineComponent({
                 </div>
                 <div class="ov-text-row">
                   <label class="ov-flip">
+                    <input type="checkbox" name="パーツの縦書き" :checked="!!selected.text.vertical" @change="onTextCheck(selected.id, 'vertical', $event)">
+                    縦書き
+                  </label>
+                </div>
+                <div class="ov-text-row">
+                  <label class="ov-flip">
                     <input type="checkbox" name="パーツの縁取り" :checked="selected.text.outlineOn" @change="onTextCheck(selected.id, 'outlineOn', $event)">
                     縁取り
                   </label>
