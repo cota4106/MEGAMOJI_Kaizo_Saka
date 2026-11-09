@@ -26,6 +26,7 @@ import GridItem from "./global/GridItem.vue";
 import Image from "./icons/Image.vue";
 import Text from "./icons/Text.vue";
 import Card from "./global/Card.vue";
+import ToggleButton from "./inputs/ToggleButton.vue";
 import Emoji from "./icons/Emoji.vue";
 import Tools from "./icons/Tools.vue";
 import { NODE_ENV } from "../utils/env";
@@ -50,6 +51,7 @@ export default defineComponent({
     Tutorial,
     TabButton,
     TabGroup,
+    ToggleButton,
     BackupTool,
     CompressTool,
     PresetImportTool,
@@ -66,6 +68,11 @@ export default defineComponent({
   },
   data() {
     return {
+      toolsCategories: [
+        { value: "image", label: "画像・GIFの加工" },
+        { value: "slack", label: "Slack・共有" },
+        { value: "data", label: "データ管理" },
+      ],
       baseImage: null as (HTMLCanvasElement | null),
       /* パーツ重ね前の元画像と、重ねるパーツ。baseImage = 元画像 + パーツ の合成結果 */
       sourceImage: null as (HTMLCanvasElement | null),
@@ -81,6 +88,8 @@ export default defineComponent({
         mode: "text",
         /* 便利ツール画面を開いているか(作成モード(ui.mode)はそのまま保つ) */
         tools: false,
+        /* 便利ツール内の分類 */
+        toolsCategory: "image",
         showTargetPanel: false,
         showTargetDetails: false,
       },
@@ -339,18 +348,34 @@ export default defineComponent({
               :show="ui.mode == 'file' && !ui.tools && !ui.showTargetPanel" />
           <Card v-if="ui.tools">
             <Space vertical large full>
-              <div class="tool-section tool-section-first">
-                <CompressTool />
+              <div class="tool-categories">
+                <ToggleButton
+                    v-for="c in toolsCategories"
+                    :key="c.value"
+                    v-model="ui.toolsCategory"
+                    :name="`ツール分類(${c.label})`"
+                    :value="c.value">
+                  {{ c.label }}
+                </ToggleButton>
               </div>
-              <div class="tool-section">
-                <CopyPasteTool />
-              </div>
-              <div class="tool-section">
-                <PresetImportTool ref="presetImportRef" @import="onImportPreset" />
-              </div>
-              <div class="tool-section">
-                <BackupTool />
-              </div>
+              <template v-if="ui.toolsCategory === 'image'">
+                <div class="tool-section tool-section-first">
+                  <CompressTool />
+                </div>
+              </template>
+              <template v-else-if="ui.toolsCategory === 'slack'">
+                <div class="tool-section tool-section-first">
+                  <CopyPasteTool />
+                </div>
+                <div class="tool-section">
+                  <PresetImportTool ref="presetImportRef" @import="onImportPreset" />
+                </div>
+              </template>
+              <template v-else>
+                <div class="tool-section tool-section-first">
+                  <BackupTool />
+                </div>
+              </template>
             </Space>
           </Card>
           <Target
@@ -427,6 +452,12 @@ export default defineComponent({
 .tool-section {
   padding-top: var(--spacingLarge);
   border-top: 1px solid var(--border);
+}
+
+.tool-categories {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacingSmall);
 }
 
 .tool-section-first {
