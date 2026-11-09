@@ -323,14 +323,18 @@ export default defineComponent({
                   @toggle-show-target="onToggleShowTarget"
                   @saved="refreshGallery" />
             </Space>
-            <Gallery
-                :entries="gallery"
-                :limit="galleryLimit"
-                @load="applyFullSnapshot"
-                @remove="onRemoveGalleryEntry"
-                @clear="onClearGallery"
-                @change-limit="onChangeGalleryLimit" />
-            <CopyPasteTool />
+            <div class="side-section">
+              <Gallery
+                  :entries="gallery"
+                  :limit="galleryLimit"
+                  @load="applyFullSnapshot"
+                  @remove="onRemoveGalleryEntry"
+                  @clear="onClearGallery"
+                  @change-limit="onChangeGalleryLimit" />
+            </div>
+            <div class="side-section">
+              <CopyPasteTool />
+            </div>
           </div>
         </GridItem>
       </Grid>
@@ -357,6 +361,13 @@ export default defineComponent({
      ビューポート高さから少し余白を引いた分を上限にしておく(はみ出す分は中でスクロール) */
   max-height: calc(100vh - var(--spacingLarge) * 2);
   overflow-y: auto;
+}
+
+/* プレビュー下の各ツール(履歴・分割コピペなど)を区切って見分けやすくする */
+.side-section {
+  margin-top: var(--spacingLarge);
+  padding-top: var(--spacingLarge);
+  border-top: 1px solid var(--border);
 }
 
 .mini-preview {
