@@ -22,7 +22,9 @@ import Grid from "./global/Grid.vue";
 import GridItem from "./global/GridItem.vue";
 import Image from "./icons/Image.vue";
 import Text from "./icons/Text.vue";
+import Card from "./global/Card.vue";
 import Emoji from "./icons/Emoji.vue";
+import Tools from "./icons/Tools.vue";
 import { NODE_ENV } from "../utils/env";
 import {
   GalleryEntry, loadGalleryFromStorage, removeFromGallery, clearGallery,
@@ -45,6 +47,8 @@ export default defineComponent({
     Tutorial,
     TabButton,
     TabGroup,
+    Tools,
+    Card,
     Header,
     Footer,
     Space,
@@ -69,6 +73,8 @@ export default defineComponent({
       /* ui */
       ui: {
         mode: "text",
+        /* 便利ツール画面を開いているか(作成モード(ui.mode)はそのまま保つ) */
+        tools: false,
         showTargetPanel: false,
         showTargetDetails: false,
       },
@@ -99,10 +105,18 @@ export default defineComponent({
   },
   methods: {
     onToggleShowTarget(): void {
+      this.ui.tools = false;
       this.ui.showTargetPanel = !this.ui.showTargetPanel;
       Analytics.switchMode(this.ui.showTargetPanel ? "target" : this.ui.mode, true);
     },
     onSelectMode(value: string): void {
+      if (value === "tools") {
+        this.ui.tools = true;
+        this.ui.showTargetPanel = false;
+        Analytics.switchMode("tools", true);
+        return;
+      }
+      this.ui.tools = false;
       this.ui.mode = value;
       this.applyComposite();
       this.ui.showTargetPanel = false;
@@ -191,6 +205,7 @@ export default defineComponent({
       };
     },
     applyFullSnapshot(snapshot: { mode?: string, target?: unknown, text?: unknown, parts?: unknown, overlays?: unknown }): void {
+      this.ui.tools = false;
       if (snapshot.mode) {
         this.ui.mode = snapshot.mode;
       }
@@ -246,7 +261,7 @@ export default defineComponent({
 
       <TabGroup>
         <TabButton
-            :model-value="ui.mode"
+            :model-value="ui.tools ? 'tools' : ui.mode"
             name="タブ(テキスト)"
             value="text"
             @update:model-value="onSelectMode">
@@ -256,7 +271,7 @@ export default defineComponent({
           テキスト
         </TabButton>
         <TabButton
-            :model-value="ui.mode"
+            :model-value="ui.tools ? 'tools' : ui.mode"
             name="タブ(画像ファイル)"
             value="file"
             @update:model-value="onSelectMode">
@@ -266,7 +281,7 @@ export default defineComponent({
           画像ファイル
         </TabButton>
         <TabButton
-            :model-value="ui.mode"
+            :model-value="ui.tools ? 'tools' : ui.mode"
             name="タブ(パーツ)"
             value="parts"
             @update:model-value="onSelectMode">
@@ -275,29 +290,44 @@ export default defineComponent({
           </template>
           パーツ
         </TabButton>
+        <TabButton
+            :model-value="ui.tools ? 'tools' : ui.mode"
+            name="タブ(便利ツール)"
+            value="tools"
+            @update:model-value="onSelectMode">
+          <template #icon>
+            <Tools />
+          </template>
+          便利ツール
+        </TabButton>
       </TabGroup>
 
       <Grid :columns="[[760, 1], [Infinity, 3]]" spaced>
         <GridItem :span="2">
           <TextSource
               ref="textSourceRef"
-              :show="ui.mode == 'text' && !ui.showTargetPanel"
+              :show="ui.mode == 'text' && !ui.tools && !ui.showTargetPanel"
               :emoji-size="emojiSize"
               @render="onRender" />
           <FileSource
-              :show="ui.mode == 'file' && !ui.showTargetPanel"
+              :show="ui.mode == 'file' && !ui.tools && !ui.showTargetPanel"
               @render="onRender" />
           <FukumojiSource
               ref="fukumojiRef"
-              :show="ui.mode == 'parts' && !ui.showTargetPanel"
+              :show="ui.mode == 'parts' && !ui.tools && !ui.showTargetPanel"
               :emoji-size="emojiSize"
               @render="onRender" />
           <OverlayEditor
               v-model="overlays"
-              :show="(ui.mode == 'text' || ui.mode == 'file') && !ui.showTargetPanel"
+              :show="(ui.mode == 'text' || ui.mode == 'file') && !ui.tools && !ui.showTargetPanel"
               :source="sourceImage" />
           <VideoToGif
-              :show="ui.mode == 'file' && !ui.showTargetPanel" />
+              :show="ui.mode == 'file' && !ui.tools && !ui.showTargetPanel" />
+          <Card v-if="ui.tools">
+            <Space vertical large full>
+              <CopyPasteTool />
+            </Space>
+          </Card>
           <Target
               ref="targetRef"
               v-model:emoji-size="emojiSize"
@@ -305,7 +335,7 @@ export default defineComponent({
               :base-image="baseImage"
               :get-external-snapshot="getTextSnapshotForPreset"
               :apply-external-snapshot="applyTextSnapshotFromPreset"
-              @incoming-preset="ui.showTargetPanel = true"
+              @incoming-preset="ui.tools = false; ui.showTargetPanel = true"
               @render="onRenderTarget" />
         </GridItem>
         <GridItem>
@@ -332,9 +362,7 @@ export default defineComponent({
                   @clear="onClearGallery"
                   @change-limit="onChangeGalleryLimit" />
             </div>
-            <div class="side-section">
-              <CopyPasteTool />
-            </div>
+
           </div>
         </GridItem>
       </Grid>
