@@ -601,6 +601,31 @@ export default defineComponent({
       this.incomingPreset = null;
       this.clearIncomingHash();
     },
+    /** 共有コード、または共有URLの文字列からプリセットを追加する。読み取れなければ false */
+    importPresetFromText(text: string): boolean {
+      let code = text.trim();
+      const urlIndex = code.indexOf(`#${PRESET_URL_KEY}`);
+      if (urlIndex >= 0) {
+        // 共有URLの場合は、URL用に変換されたコードを元の形式に戻す
+        const body = code.slice(urlIndex + 1 + PRESET_URL_KEY.length)
+          .replace(/-/g, "+").replace(/_/g, "/");
+        code = `${PRESET_CODE_PREFIX}${body + "=".repeat((4 - (body.length % 4)) % 4)}`;
+      }
+      const decoded = decodePresetFromCode(code);
+      if (!decoded) {
+        return false;
+      }
+      const preset: Preset = {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        name: decoded.name,
+        snapshot: decoded.snapshot,
+        external: decoded.external,
+        savedAt: Date.now(),
+      };
+      this.presets = [preset, ...this.presets];
+      savePresetsToStorage(this.presets);
+      return true;
+    },
     importPresetFromCode(): void {
       const decoded = decodePresetFromCode(this.importCode);
       if (!decoded) {

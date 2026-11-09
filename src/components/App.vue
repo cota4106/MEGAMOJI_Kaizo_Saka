@@ -13,6 +13,9 @@ import Target from "./cards/Target.vue";
 import Result from "./cards/Result.vue";
 import Gallery from "./cards/Gallery.vue";
 import CopyPasteTool from "./cards/CopyPasteTool.vue";
+import BackupTool from "./cards/BackupTool.vue";
+import CompressTool from "./cards/CompressTool.vue";
+import PresetImportTool from "./cards/PresetImportTool.vue";
 import BaseImage from "./cards/BaseImage.vue";
 import Tutorial from "./cards/Tutorial.vue";
 import TabButton from "./inputs/TabButton.vue";
@@ -47,6 +50,9 @@ export default defineComponent({
     Tutorial,
     TabButton,
     TabGroup,
+    BackupTool,
+    CompressTool,
+    PresetImportTool,
     Tools,
     Card,
     Header,
@@ -121,6 +127,14 @@ export default defineComponent({
       this.applyComposite();
       this.ui.showTargetPanel = false;
       Analytics.switchMode(value, true);
+    },
+    onImportPreset(text: string): void {
+      const target = this.$refs.targetRef as { importPresetFromText?: (t: string) => boolean } | undefined;
+      const ok = !!(target?.importPresetFromText && target.importPresetFromText(text));
+      const tool = this.$refs.presetImportRef as { setResult?: (ok: boolean) => void } | undefined;
+      if (tool?.setResult) {
+        tool.setResult(ok);
+      }
     },
     onRenderTarget(imgs: Blob[][]): void {
       this.resultImages = imgs;
@@ -325,7 +339,18 @@ export default defineComponent({
               :show="ui.mode == 'file' && !ui.tools && !ui.showTargetPanel" />
           <Card v-if="ui.tools">
             <Space vertical large full>
-              <CopyPasteTool />
+              <div class="tool-section tool-section-first">
+                <CompressTool />
+              </div>
+              <div class="tool-section">
+                <CopyPasteTool />
+              </div>
+              <div class="tool-section">
+                <PresetImportTool ref="presetImportRef" @import="onImportPreset" />
+              </div>
+              <div class="tool-section">
+                <BackupTool />
+              </div>
             </Space>
           </Card>
           <Target
@@ -396,6 +421,17 @@ export default defineComponent({
   margin-top: var(--spacingLarge);
   padding-top: var(--spacingLarge);
   border-top: 1px solid var(--border);
+}
+
+/* 便利ツール同士を線で区切る */
+.tool-section {
+  padding-top: var(--spacingLarge);
+  border-top: 1px solid var(--border);
+}
+
+.tool-section-first {
+  padding-top: 0;
+  border-top: none;
 }
 
 .mini-preview {
