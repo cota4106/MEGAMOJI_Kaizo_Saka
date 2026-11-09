@@ -749,7 +749,16 @@ export default defineComponent({
           this.$emit("render", res);
           this.running = false;
           this.render();
+        }).catch(() => {
+          // 失敗しても「描画中」のまま固まらないようにする
+          this.running = false;
         });
+      } else {
+        // 元画像がまだ無いとき(履歴の復元が先に走った場合など)に
+        // 「描画中」のまま固まって、その後ずっと描画されなくなるのを防ぐ。
+        // 元画像が届いたら baseImage の監視側で描画される。
+        this.running = false;
+        this.dirty = true;
       }
     },
   },
