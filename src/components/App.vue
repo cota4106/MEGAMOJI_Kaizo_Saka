@@ -15,6 +15,7 @@ import Gallery from "./cards/Gallery.vue";
 import CopyPasteTool from "./cards/CopyPasteTool.vue";
 import BackupTool from "./cards/BackupTool.vue";
 import CompressTool from "./cards/CompressTool.vue";
+import GifEditTool from "./cards/GifEditTool.vue";
 import PresetImportTool from "./cards/PresetImportTool.vue";
 import BaseImage from "./cards/BaseImage.vue";
 import Tutorial from "./cards/Tutorial.vue";
@@ -54,6 +55,7 @@ export default defineComponent({
     ToggleButton,
     BackupTool,
     CompressTool,
+    GifEditTool,
     PresetImportTool,
     Tools,
     Card,
@@ -361,6 +363,9 @@ export default defineComponent({
               <template v-if="ui.toolsCategory === 'image'">
                 <div class="tool-section tool-section-first">
                   <CompressTool />
+                </div>
+                <div class="tool-section">
+                  <GifEditTool />
                 </div>
               </template>
               <template v-else-if="ui.toolsCategory === 'slack'">
