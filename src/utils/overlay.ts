@@ -59,6 +59,8 @@ export type OverlayItem = {
   flipX: boolean;
   /** 不透明度(%) */
   opacity: number;
+  /** false のとき、エフェクトをかけず、エフェクト後の絵の上にそのまま重ねる(省略時はかける) */
+  effect?: boolean;
 };
 
 /** スナップショットに保存する際の型(OverlayItemと同じ。JSON化可能) */
@@ -202,19 +204,34 @@ export const loadItemImage = (item: OverlayItem): Promise<Trimmed | null> => (
 );
 
 /** 元画像canvasにパーツを重ね描きする(元canvasは変更しない) */
+/** エフェクトをかけないパーツか */
+export const isTopOverlay = (o: OverlayItem): boolean => o.effect === false;
+
+/**
+ * パーツを重ねる。
+ * mode "effect": エフェクトをかけるパーツだけを source に重ねた絵を返す(エフェクトの前に使う)。
+ * mode "top": エフェクトをかけないパーツだけを透明な絵に描いて返す(エフェクトの後に重ねる用。無ければ null)。
+ * mode "all": すべてのパーツを重ねる(編集画面のプレビュー用)。
+ */
 export const compositeOverlays = async (
   source: HTMLCanvasElement,
-  items: OverlayItem[],
-): Promise<HTMLCanvasElement> => {
+  allItems: OverlayItem[],
+  mode: "effect" | "top" | "all" = "effect",
+): Promise<HTMLCanvasElement | null> => {
+  let items = allItems;
+  if (mode === "top") items = allItems.filter(isTopOverlay);
+  else if (mode === "effect") items = allItems.filter((o) => !isTopOverlay(o));
   if (items.length === 0) {
-    return source;
+    return mode === "top" ? null : source;
   }
   const out = document.createElement("canvas");
   out.width = source.width;
   out.height = source.height;
   const ctx = out.getContext("2d");
   if (!ctx) throw new Error("Failed to get rendering context.");
-  ctx.drawImage(source, 0, 0);
+  if (mode !== "top") {
+    ctx.drawImage(source, 0, 0);
+  }
   const base = Math.min(source.width, source.height);
   for (const item of items) {
     let trimmed: Trimmed | null;
@@ -290,5 +307,6 @@ export const sanitizeOverlays = (raw: unknown): OverlayItem[] => {
       rotation: num(r.rotation, 0, -180, 180),
       flipX: !!r.flipX,
       opacity: num(r.opacity, 100, 0, 100),
+      effect: r.effect === false ? false : undefined,
     }));
 };

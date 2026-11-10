@@ -311,7 +311,7 @@ export default defineComponent({
       if (!stage || !this.source) return;
       const token = ++this.renderToken;
       await this.ensureDims();
-      const comp = await compositeOverlays(this.source, this.modelValue);
+      const comp = await compositeOverlays(this.source, this.modelValue, "all") || this.source;
       if (token !== this.renderToken) return;
       stage.width = comp.width;
       stage.height = comp.height;
@@ -581,7 +581,7 @@ export default defineComponent({
                   @click="selectedId = o.id">
                 <span v-if="o.text" class="ov-item-img ov-item-t">T</span>
                 <img v-else :src="o.src" class="ov-item-img">
-                <span class="ov-item-label">{{ i + 1 }}. {{ o.label }}</span>
+                <span class="ov-item-label">{{ i + 1 }}. {{ o.label }}<span v-if="o.effect === false" class="ov-item-tag">効果なし</span></span>
                 <button type="button" class="ov-mini" title="手前に" @click.stop="move(o.id, 1)">↑</button>
                 <button type="button" class="ov-mini" title="奥に" @click.stop="move(o.id, -1)">↓</button>
                 <button type="button" class="ov-mini" title="複製" @click.stop="duplicate(o.id)">複製</button>
@@ -658,6 +658,19 @@ export default defineComponent({
                     :step="row.step"
                     @change="onNumber(row, $event)">
               </div>
+              <div class="ov-effect-row">
+                <label class="ov-flip">
+                  <input
+                      type="checkbox"
+                      name="パーツにエフェクトをかける"
+                      :checked="selected.effect !== false"
+                      @change="patch(selected.id, { effect: ($event.target as HTMLInputElement).checked ? undefined : false })">
+                  このパーツにエフェクトをかける
+                </label>
+                <span class="ov-effect-hint">
+                  {{ selected.effect === false ? "エフェクトをかけた絵の上に、そのまま重ねます" : "他の絵と一緒にエフェクトがかかります" }}
+                </span>
+              </div>
               <div class="ov-actions">
                 <label class="ov-flip">
                   <input
@@ -715,6 +728,9 @@ export default defineComponent({
 .ov-row-slider { flex: 1; min-width: 0; }
 .ov-row-number { width: 4.5em; flex: none; background: #fff; color: #222; border: 1px solid #bbb; border-radius: 5px; padding: 2px 4px; }
 .ov-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.ov-effect-row { display: flex; flex-direction: column; gap: 2px; }
+.ov-effect-hint { font-size: .75em; opacity: .65; }
+.ov-item-tag { margin-left: 6px; font-size: .75em; padding: 0 5px; border: 1px solid currentColor; border-radius: 8px; opacity: .7; }
 .ov-flip { font-size: .85em; display: flex; align-items: center; gap: 4px; }
 .ov-clear { align-self: flex-start; }
 .ov-text-add { align-self: flex-start; padding: 4px 12px; }

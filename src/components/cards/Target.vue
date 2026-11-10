@@ -221,6 +221,8 @@ export default defineComponent({
   },
   props: {
     baseImage: { type: Object as PropType<HTMLCanvasElement>, default: null },
+    /** エフェクトをかけないパーツだけを描いた透明な絵(baseImageと同じ大きさ)。エフェクト後に重ねる */
+    topImage: { type: Object as PropType<HTMLCanvasElement>, default: null },
     show: { type: Boolean, required: true },
     emojiSize: { type: Number, default: null },
     // プリセットに「文字入力の内容」なども一緒に保存したい場合、App.vue側から
@@ -324,6 +326,13 @@ export default defineComponent({
       },
     },
     emojiSize: {
+      handler(): void {
+        if (this.baseImage) {
+          this.render(true);
+        }
+      },
+    },
+    topImage: {
       handler(): void {
         if (this.baseImage) {
           this.render(true);
@@ -770,6 +779,7 @@ export default defineComponent({
           this.conf.backgroundColor,
           this.conf.transparent,
           binarySizeLimit,
+          this.topImage,
         ).then((res) => {
           this.$emit("render", res);
           this.running = false;

@@ -21,6 +21,7 @@ const renderFrameUncut = async (
   framerate: number,
   framecount: number,
   fillStyle: string,
+  topImage: HTMLCanvasElement | null = null,
 ): Promise<HTMLCanvasElement> => {
   /* use larger canvas, because some effects may translate the canvas */
   let canvas = document.createElement("canvas");
@@ -78,9 +79,24 @@ const renderFrameUncut = async (
     resultCtx.rect(targetWidth / 2, targetHeight / 2, targetWidth, targetHeight);
     resultCtx.strokeStyle = "#8888";
     resultCtx.stroke();
+    if (topImage) {
+      // エフェクトをかけないパーツ: 元画像と同じ位置合わせで、エフェクト後の絵の上に重ねる
+      await fixDrawImage(
+        resultCtx,
+        topImage,
+        offsetH - width / 2,
+        offsetV - height / 2,
+        width * 2,
+        height * 2,
+        0,
+        0,
+        targetWidth * 2,
+        targetHeight * 2,
+      );
+    }
     return result;
   } else {
-    return cropCanvas(
+    const cropped = cropCanvas(
       canvas,
       targetWidth / 2,
       targetHeight / 2,
@@ -88,6 +104,22 @@ const renderFrameUncut = async (
       targetHeight,
       fillStyle,
     );
+    if (topImage) {
+      const croppedCtx = cropped.getContext("2d")!;
+      await fixDrawImage(
+        croppedCtx,
+        topImage,
+        offsetH,
+        offsetV,
+        width,
+        height,
+        0,
+        0,
+        targetWidth,
+        targetHeight,
+      );
+    }
+    return cropped;
   }
 };
 
@@ -116,6 +148,7 @@ const renderAllCellsFixedSize = async (
   framecount: number,
   backgroundColor: string,
   transparent: boolean,
+  topImage: HTMLCanvasElement | null,
 ): Promise<Blob[][]> => {
   const croppedWidth = targetWidth * (noCrop ? 2 : 1);
   const croppedHeight = targetHeight * (noCrop ? 2 : 1);
@@ -138,6 +171,7 @@ const renderAllCellsFixedSize = async (
       framerate,
       framecount,
       transparent ? "rgba(0, 0, 0, 0)" : backgroundColor,
+      topImage,
     );
     const cells = cutoutCanvasIntoCells(img, 0, 0, hCells, vCells, croppedWidth, croppedHeight);
     return Promise.all<Blob[]>(cells.map((row) => (
@@ -189,6 +223,7 @@ const renderAllCellsFixedSize = async (
         framerate,
         framecount,
         transparent ? "rgba(0, 0, 0, 0)" : backgroundColor,
+      topImage,
       );
       const imgCells = cutoutCanvasIntoCells(
         frame,
@@ -260,6 +295,7 @@ export async function renderAllCells(
   backgroundColor: string,
   transparent: boolean,
   binarySizeLimit: number,
+  topImage: HTMLCanvasElement | null = null,
 ): Promise<Blob[][]> {
   const targetWidth = Math.round(maxWidth);
   const targetHeight = Math.round(maxHeight);
@@ -285,6 +321,7 @@ export async function renderAllCells(
     framecount,
     backgroundColor,
     transparent,
+    topImage,
   );
 
   /**
@@ -318,6 +355,7 @@ export async function renderAllCells(
       backgroundColor,
       transparent,
       binarySizeLimit,
+      topImage,
     );
   } else {
     return render;

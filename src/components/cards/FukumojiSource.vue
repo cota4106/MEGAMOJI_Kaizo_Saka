@@ -74,15 +74,17 @@ export default defineComponent({
       const token = ++this.token;
       const base = await this.renderBase();
       let img = base;
+      let top: HTMLCanvasElement | null = null;
       try {
-        img = await compositeOverlays(base, this.overlays);
+        img = (await compositeOverlays(base, this.overlays, "effect")) || base;
+        top = await compositeOverlays(base, this.overlays, "top");
       } catch (_) {
         img = base;
       }
       if (token !== this.token) {
         return;
       }
-      this.$emit("render", img, null);
+      this.$emit("render", img, null, top);
     },
     getSnapshot(): unknown {
       return {

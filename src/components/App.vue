@@ -76,6 +76,10 @@ export default defineComponent({
         { value: "data", label: "データ管理" },
       ],
       baseImage: null as (HTMLCanvasElement | null),
+      /* エフェクトをかけないパーツだけの透明な絵(エフェクト後に重ねる) */
+      topImage: null as (HTMLCanvasElement | null),
+      /* パーツモードでは、パーツ側(FukumojiSource)が作った「エフェクトなし」の絵を受け取る */
+      partsTopImage: null as (HTMLCanvasElement | null),
       /* パーツ重ね前の元画像と、重ねるパーツ。baseImage = 元画像 + パーツ の合成結果 */
       sourceImage: null as (HTMLCanvasElement | null),
       overlays: [] as OverlayItem[],
@@ -151,7 +155,8 @@ export default defineComponent({
       this.resultImages = imgs;
       Analytics.render();
     },
-    onRender(img: HTMLCanvasElement, name: string): void {
+    onRender(img: HTMLCanvasElement, name: string, top?: HTMLCanvasElement | null): void {
+      this.partsTopImage = top || null;
       this.sourceImage = img;
       this.name = name;
       this.applyComposite();
@@ -169,16 +174,21 @@ export default defineComponent({
       const token = ++this.compositeToken;
       const items = this.ui.mode === "parts" ? [] : this.overlays;
       let result: HTMLCanvasElement = src;
+      let top: HTMLCanvasElement | null = null;
       if (items.length > 0) {
         try {
-          result = await compositeOverlays(src, items);
+          result = (await compositeOverlays(src, items, "effect")) || src;
+          top = await compositeOverlays(src, items, "top");
         } catch (_) {
           result = src; // 合成に失敗しても元画像でエフェクトは動かす
         }
+      } else if (this.ui.mode === "parts") {
+        top = this.partsTopImage;
       }
       if (token !== this.compositeToken) {
         return;
       }
+      this.topImage = top;
       this.baseImage = result;
     },
     scrollToResult(): void {
@@ -388,6 +398,7 @@ export default defineComponent({
               v-model:emoji-size="emojiSize"
               :show="ui.showTargetPanel"
               :base-image="baseImage"
+              :top-image="topImage"
               :get-external-snapshot="getTextSnapshotForPreset"
               :apply-external-snapshot="applyTextSnapshotFromPreset"
               @incoming-preset="ui.tools = false; ui.showTargetPanel = true"
