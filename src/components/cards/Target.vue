@@ -78,6 +78,7 @@ type ConfSnapshot = {
   trimH: [number, number];
   trimV: [number, number];
   noCrop: boolean;
+  keepAspect?: boolean;
   easing: string;
   duration: number;
   backgroundColor: string;
@@ -264,6 +265,7 @@ export default defineComponent({
         trimH: [0, 0],
         trimV: [0, 0],
         noCrop: false,
+        keepAspect: false,
         easing: easings[0],
         duration: SPEED_OPTIONS[2].value,
         backgroundColor: "#ffffff",
@@ -395,6 +397,7 @@ export default defineComponent({
         trimH: [this.conf.trimH[0], this.conf.trimH[1]],
         trimV: [this.conf.trimV[0], this.conf.trimV[1]],
         noCrop: this.conf.noCrop,
+        keepAspect: this.conf.keepAspect,
         easing: this.conf.easing.label,
         duration: this.conf.duration,
         backgroundColor: this.conf.backgroundColor,
@@ -431,6 +434,7 @@ export default defineComponent({
       this.conf.trimH = [snapshot.trimH[0], snapshot.trimH[1]];
       this.conf.trimV = [snapshot.trimV[0], snapshot.trimV[1]];
       this.conf.noCrop = snapshot.noCrop;
+      this.conf.keepAspect = !!snapshot.keepAspect;
       this.conf.easing = findByLabel(easings, snapshot.easing) ?? easings[0];
       this.conf.duration = snapshot.duration;
       this.conf.backgroundColor = snapshot.backgroundColor;
@@ -693,7 +697,11 @@ export default defineComponent({
         let widthPerCell = width / hCells;
         let heightPerCell = height / vCells;
         let aspect = 1;
-        if (this.conf.trimming.value === "cover") {
+        if (this.conf.keepAspect && hCells * vCells > 1) {
+          // 伸ばさない: 比率を保ったまま全体におさめ、足りない部分は余白(透明)にする
+          widthPerCell = Math.max(widthPerCell, heightPerCell);
+          heightPerCell = widthPerCell;
+        } else if (this.conf.trimming.value === "cover") {
           widthPerCell = Math.min(widthPerCell, heightPerCell);
           heightPerCell = widthPerCell;
         } else if (this.conf.trimming.value === "contain") {
@@ -780,6 +788,7 @@ export default defineComponent({
           this.conf.transparent,
           binarySizeLimit,
           this.topImage,
+          this.conf.keepAspect && splitting,
         ).then((res) => {
           this.$emit("render", res);
           this.running = false;
@@ -1018,7 +1027,15 @@ export default defineComponent({
                 v-if="splitOpen"
                 v-model="conf.cells"
                 :aspect="imageAspect"
+                :keep-aspect="conf.keepAspect"
                 @update:model-value="refreshDefaultSettings" />
+            <Checkbox
+                v-if="splitOpen && conf.cells[0] * conf.cells[1] > 1"
+                v-model="conf.keepAspect"
+                name="分割で画像を伸ばさない"
+                @update:model-value="refreshDefaultSettings">
+              {{ "画像を伸ばさず、足りない部分を透明にする" }}
+            </Checkbox>
           </Space>
         </Space>
       </GridItem>

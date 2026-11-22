@@ -13,6 +13,8 @@ export default defineComponent({
     modelValue: { type: Array as PropType<number[]>, required: true },
     // 分割対象になる画像の縦横比(横 / 縦)。指定があれば「おすすめの分割数」を出す
     aspect: { type: Number, default: null },
+    // 「画像を伸ばさない」設定がオンのとき(伸びる代わりに余白が透明になる)
+    keepAspect: { type: Boolean, default: false },
   },
   emits: [
     "update:modelValue",
@@ -29,7 +31,7 @@ export default defineComponent({
         return null;
       }
       const [h, v] = this.modelValue;
-      if (!h || !v || h * v <= 1) {
+      if (!h || !v || h * v <= 1 || this.keepAspect) {
         return null;
       }
       return Math.round(cellDistortion(this.aspect, h, v) * 100);
@@ -65,7 +67,10 @@ export default defineComponent({
             @update:model-value="$emit('update:modelValue', [modelValue[0], $event])" />
       </Space>
       <span class="order-hint">(横 x 縦)</span>
-      <span v-if="modelValue[0] * modelValue[1] > 1" class="order-hint">
+      <span v-if="modelValue[0] * modelValue[1] > 1 && keepAspect" class="order-hint">
+        分割したマスはすべて正方形になります。画像は伸ばさずに全体の中央へおさめ、足りない部分は透明になります。
+      </span>
+      <span v-else-if="modelValue[0] * modelValue[1] > 1" class="order-hint">
         分割したマスはすべて正方形になります(元画像の比率と合わない分割数だと、その分引き伸ばされます)。
       </span>
       <span

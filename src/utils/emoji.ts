@@ -22,6 +22,7 @@ const renderFrameUncut = async (
   framecount: number,
   fillStyle: string,
   topImage: HTMLCanvasElement | null = null,
+  imageFill: string | null = null,
 ): Promise<HTMLCanvasElement> => {
   /* use larger canvas, because some effects may translate the canvas */
   let canvas = document.createElement("canvas");
@@ -33,6 +34,19 @@ const renderFrameUncut = async (
     throw new Error("Failed to get rendering context.");
   }
   ctx.imageSmoothingQuality = "high";
+
+  if (imageFill) {
+    // 余白を透明にするとき: 背景色は元画像の範囲の内側だけに塗る
+    const scaleX = (targetWidth * 2) / (width * 2);
+    const scaleY = (targetHeight * 2) / (height * 2);
+    ctx.fillStyle = imageFill;
+    ctx.fillRect(
+      (0 - (offsetH - width / 2)) * scaleX,
+      (0 - (offsetV - height / 2)) * scaleY,
+      image.width * scaleX,
+      image.height * scaleY,
+    );
+  }
 
   effects.forEach((effect) => {
     effect(keyframe, ctx, targetWidth * 2, targetHeight * 2);
@@ -149,7 +163,12 @@ const renderAllCellsFixedSize = async (
   backgroundColor: string,
   transparent: boolean,
   topImage: HTMLCanvasElement | null,
+  keepAspect: boolean,
 ): Promise<Blob[][]> => {
+  // 余白を透明にする場合、背景色は元画像の範囲の内側だけに塗り、外側は透明のままにする
+  const edgeFill = keepAspect || transparent ? "rgba(0, 0, 0, 0)" : backgroundColor;
+  const innerFill = keepAspect && !transparent ? backgroundColor : null;
+  const outTransparent = transparent || keepAspect;
   const croppedWidth = targetWidth * (noCrop ? 2 : 1);
   const croppedHeight = targetHeight * (noCrop ? 2 : 1);
 
@@ -170,8 +189,9 @@ const renderAllCellsFixedSize = async (
       webglEffects,
       framerate,
       framecount,
-      transparent ? "rgba(0, 0, 0, 0)" : backgroundColor,
+      edgeFill,
       topImage,
+      innerFill,
     );
     const cells = cutoutCanvasIntoCells(img, 0, 0, hCells, vCells, croppedWidth, croppedHeight);
     return Promise.all<Blob[]>(cells.map((row) => (
@@ -192,7 +212,7 @@ const renderAllCellsFixedSize = async (
           height: croppedHeight,
           width: croppedWidth,
           delay: delayPerFrame,
-          transparent,
+          transparent: outTransparent,
         },
       });
       return encoder;
@@ -222,8 +242,9 @@ const renderAllCellsFixedSize = async (
         webglEffects,
         framerate,
         framecount,
-        transparent ? "rgba(0, 0, 0, 0)" : backgroundColor,
-      topImage,
+        edgeFill,
+        topImage,
+        innerFill,
       );
       const imgCells = cutoutCanvasIntoCells(
         frame,
@@ -296,6 +317,7 @@ export async function renderAllCells(
   transparent: boolean,
   binarySizeLimit: number,
   topImage: HTMLCanvasElement | null = null,
+  keepAspect = false,
 ): Promise<Blob[][]> {
   const targetWidth = Math.round(maxWidth);
   const targetHeight = Math.round(maxHeight);
@@ -322,6 +344,7 @@ export async function renderAllCells(
     backgroundColor,
     transparent,
     topImage,
+    keepAspect,
   );
 
   /**
@@ -356,6 +379,7 @@ export async function renderAllCells(
       transparent,
       binarySizeLimit,
       topImage,
+      keepAspect,
     );
   } else {
     return render;
