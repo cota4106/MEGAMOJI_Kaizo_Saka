@@ -44,7 +44,11 @@ const seekTo = (video: HTMLVideoElement, t: number): Promise<void> => new Promis
   video.currentTime = t;
 });
 
-export type Extracted = { frames: HTMLCanvasElement[], fps: number, width: number, height: number };
+export type Extracted = {
+  frames: HTMLCanvasElement[], fps: number, width: number, height: number,
+  /** 透明な部分を透明のまま出力する(省略時は透明にしない) */
+  transparent?: boolean,
+};
 
 /** 動画の [start, end] 秒から fps 間隔でコマを取り出し、width x height にして返す */
 export const extractFrames = async (
@@ -87,6 +91,7 @@ export const encodeGif = (
   height: number,
   delayMs: number,
   colors: number,
+  transparent = false,
 ): Promise<Blob> => new Promise((resolve, reject) => {
   const worker = new Worker("./gifworker.js");
   worker.addEventListener("error", () => {
@@ -95,7 +100,7 @@ export const encodeGif = (
   });
   worker.postMessage({
     initialize: {
-      width, height, delay: delayMs, transparent: false, colors,
+      width, height, delay: delayMs, transparent, colors,
     },
   });
   frames.forEach((f) => {
@@ -157,7 +162,7 @@ export const encodeWithStep = async (
   }
   const fps = ex.fps * f;
   const delayMs = Math.max(20, Math.round(1000 / fps));
-  const blob = await encodeGif(picked, w, h, delayMs, step.colors);
+  const blob = await encodeGif(picked, w, h, delayMs, step.colors, !!ex.transparent);
   return {
     blob, width: w, height: h, fps: Math.round(fps * 10) / 10, colors: step.colors, frameCount: picked.length,
   };

@@ -181,7 +181,7 @@ export default defineComponent({
             </template>
           </p>
           <p v-if="result.animated" class="ct-note">
-            ※ アニメGIFは、透明な部分が白になります。
+            ※ 元のGIFに透明な部分があれば、透明のまま出力します(半透明の縁は透明/不透明のどちらかになります)。
           </p>
           <Button type="text" name="圧縮した画像を保存" @click="onDownload">
             <template #icon>

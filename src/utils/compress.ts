@@ -26,6 +26,17 @@ const flattenOnWhite = (src: HTMLCanvasElement): HTMLCanvasElement => {
   return c;
 };
 
+/** 半分以上透明なピクセルが1つでもあるか */
+const hasTransparency = (frames: HTMLCanvasElement[]): boolean => frames.some((c) => {
+  const ctx = c.getContext("2d");
+  if (!ctx) return false;
+  const { data } = ctx.getImageData(0, 0, c.width, c.height);
+  for (let p = 3; p < data.length; p += 4) {
+    if (data[p] < 128) return true;
+  }
+  return false;
+});
+
 const canvasToPng = (c: HTMLCanvasElement): Promise<Blob> => new Promise((resolve, reject) => {
   c.toBlob((b) => (b ? resolve(b) : reject(new Error("PNGの生成に失敗しました"))), "image/png");
 });
@@ -90,8 +101,11 @@ const compressAnimated = async (
   const buffer = await file.arrayBuffer();
   const decoded = await decodeGif(buffer);
   const avgDelay = decoded.frames.reduce((s, f) => s + f.delay, 0) / decoded.frames.length;
+  // 透明な部分がある場合は透明のまま出力し、無い場合だけ白地にならすだけ(見た目は同じ)
+  const transparent = hasTransparency(decoded.frames.map((f) => f.canvas));
   const ex: Extracted = {
-    frames: decoded.frames.map((f) => flattenOnWhite(f.canvas)),
+    transparent,
+    frames: decoded.frames.map((f) => (transparent ? f.canvas : flattenOnWhite(f.canvas))),
     fps: 1000 / Math.max(avgDelay, 20),
     width: decoded.width,
     height: decoded.height,
